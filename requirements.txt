@@ -94,8 +94,6 @@ Pillow==9.5.0
 prettytable==3.10.0
 protobuf==4.25.3
 psutil==5.9.8
-psycopg2==2.9.9
-psycopg2-binary==2.9.9
 pyarrow==21.0.0
 pyasn1==0.6.0
 pycparser==2.22
@@ -173,6 +171,7 @@ wrapt==1.16.0
 wsproto==1.2.0
 yacs==0.1.8
 zipp==3.23.0
+
 
 
 
