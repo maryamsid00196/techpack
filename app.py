@@ -3,6 +3,7 @@ import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 from ai_part import ai_generate_description, generate_pdf_report
+import numpy as np
 
 # --- Utility functions ---
 @st.cache_data(show_spinner=False)
@@ -159,4 +160,5 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
