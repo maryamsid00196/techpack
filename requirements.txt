@@ -137,7 +137,7 @@ soupsieve==2.5
 starkbank-ecdsa==2.2.0
 streamlit==1.25.0
 streamlit-drawable-canvas==0.9.3
-streamlit-image-coordinates==0.4.0
+streamlit-image-coordinates
 sympy==1.12
 tenacity==8.5.0
 tensorboard==2.16.2
@@ -170,6 +170,7 @@ wrapt==1.16.0
 wsproto==1.2.0
 yacs==0.1.8
 zipp==3.23.0
+
 
 
 
