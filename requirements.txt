@@ -143,7 +143,7 @@ tenacity==8.5.0
 tensorboard==2.16.2
 tensorboard-data-server==0.7.2
 tensorflow==2.16.1
-tensorflow-intel==2.16.1
+tensorflow-intel
 tensorflow-io-gcs-filesystem==0.31.0
 termcolor==2.4.0
 threadpoolctl==3.5.0
@@ -170,6 +170,7 @@ wrapt==1.16.0
 wsproto==1.2.0
 yacs==0.1.8
 zipp==3.23.0
+
 
 
 
