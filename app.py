@@ -4,6 +4,28 @@ from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 from ai_part import ai_generate_description, generate_pdf_report
 import numpy as np
+import pandas as pd
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
+    Image as RLImage, PageBreak
+)
+from reportlab.lib.units import cm
+import os
+import sys
+from PIL import Image
+import matplotlib.pyplot as plt
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
+    Image as RLImage, PageBreak
+)
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from openai import OpenAI
+import pandas as pd
+
+
 
 # --- Utility functions ---
 @st.cache_data(show_spinner=False)
@@ -27,6 +49,11 @@ def apply_logo(cap_path, logo_path, width_px, height_px, out_path, center):
     composite.save(out_path)
     return out_path
 
+def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
+    df = pd.read_excel(file_path, header=None)
+    subset = df.iloc[start_row-1:end_row, [1, 2]].dropna()
+    subset.columns = [column1, column2]
+    return subset.values.tolist()
 
 # --- Streamlit App ---
 st.set_page_config(page_title="Logo Placement Tool", layout="wide")
@@ -43,6 +70,49 @@ if "h_cm" not in st.session_state:
     st.session_state.h_cm = 3.0
 if "retry" not in st.session_state:
     st.session_state.retry = False
+
+
+st.subheader("Step 0: Upload Excel & Select Data Range")
+
+excel_file = st.file_uploader("Upload Excel File", type=["xlsx", "xls"], key="excel_upload")
+
+if excel_file:
+    # Don’t assign headers yet (so we can rename freely)
+    df = pd.read_excel(excel_file, header=None)
+
+    total_rows = len(df)
+    st.write(f"📊 Total rows detected: {total_rows}")
+
+    # --- User inputs ---
+    key_col_input = st.text_input("Enter column name for Keys (renamed)").strip()
+    value_col_input = st.text_input("Enter column name for Values (renamed)").strip()
+
+    start_row = st.number_input("Start Row (1-indexed)", min_value=1, max_value=total_rows, value=1, step=1)
+    end_row = st.number_input("End Row (1-indexed)", min_value=1, max_value=total_rows, value=total_rows, step=1)
+
+    if st.button("📥 Fetch Data from Excel"):
+        # Take columns 1 and 2 (i.e. B and C in Excel, since Python is 0-based)
+        subset = df.iloc[start_row-1:end_row, [1, 2]].dropna()
+
+        # Rename columns to user input
+        if key_col_input and value_col_input:
+            subset.columns = [key_col_input, value_col_input]
+        else:
+            subset.columns = ["Key", "Value"]
+
+        st.success(f"✅ Fetched {len(subset)} rows.")
+        st.dataframe(subset)
+
+        # Example: also show how you’d pass to a ReportLab table
+        design_data = subset.values.tolist()
+        design_table = Table(design_data, colWidths=[7*cm, 8*cm])
+        design_table.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ]))
+        st.info("Table ready for PDF export ✅")
+
 
 
 # --- Step 1: Upload logo ---
@@ -103,7 +173,7 @@ if cap_file:
         fill_color="rgba(0, 0, 0, 0)",
         stroke_width=1,
         stroke_color="red",
-        background_image=np.array(cap_resized), 
+        background_image=cap_resized,
         update_streamlit=True,
         height=cap_resized.height,
         width=cap_resized.width,
@@ -160,5 +230,4 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
-
 
