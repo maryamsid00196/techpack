@@ -11,6 +11,7 @@ from reportlab.platypus import (
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from openai import OpenAI
+import pandas as pd
 
 # --- OpenAI Setup ---
 def make_openai_client():
@@ -131,6 +132,20 @@ def apply_logo(cap_path, logo_path, width_px, height_px, out_path):
     print(f"✅ Saved {out_path}")
     return out_path
 
+def fetch_key_value_table(file_path, start_row, end_row):
+    import pandas as pd
+
+    # Read Excel without treating the first row as header
+    df = pd.read_excel(file_path, header=None)
+
+    # Select columns B and C (index 1 and 2 because Pandas is 0-based)
+    subset = df.iloc[start_row-1:end_row, [1, 2]]
+
+    # Rename them cleanly
+    subset.columns = ["Details: Hat 1", "Value"]
+
+    return subset.values.tolist()
+
 # --- PDF Report ---
 def generate_pdf_report(results, pdf_path="logo_techpack.pdf"):
     doc = SimpleDocTemplate(pdf_path, pagesize=A4)
@@ -153,21 +168,8 @@ def generate_pdf_report(results, pdf_path="logo_techpack.pdf"):
     story.append(Paragraph("Fabric & Design Details", heading))
     story.append(Spacer(1, 12))
 
-    design_data = [
-        ["Design Name", "Hummingbird Sunrise"],
-        ["Process", "Heat Pressed"],
-        ["Profile", "Mid Pro"],
-        ["Bill", "Precurved"],
-        ["Fabric", "Cotton-Polyester Twill/Trucker Mesh"],
-        ["Composition", "Front: 60% Cotton / 40% Poly, Back: 100% Poly"],
-        ["Front 2 Panel Color", "Columbia Blue"],
-        ["Brim Color", "Columbia Blue"],
-        ["Mesh Color", "White"],
-        ["Stitching Color", "White"],
-        ["Top Button Color", "Columbia Blue"],
-        ["Eyelets", "Yes - 2 Eyelets on Front Panels"],
-        ["Closure", "Snapback (White)"],
-    ]
+    design_data = fetch_key_value_table("TECH.xlsx", 21, 50)
+
     design_table = Table(design_data, colWidths=[7*cm, 8*cm])
     design_table.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
