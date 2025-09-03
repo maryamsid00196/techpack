@@ -36,6 +36,12 @@ def pil_to_base64(img: Image.Image) -> str:
     byte_data = buf.getvalue()
     return base64.b64encode(byte_data).decode("utf-8")
 
+def pil_to_datauri(img: Image.Image) -> str:
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64_str = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{b64_str}"
+
 
 # Ensure assets & uploads folder exists
 os.makedirs("assets", exist_ok=True)
@@ -165,6 +171,20 @@ if cap_file:
     cap_np = np.array(cap_rgb)   # ✅ Convert PIL → NumPy
     cap_pil = Image.fromarray(cap_np)
     cap_base64 = pil_to_base64(cap_rgb)
+
+    cap_rgb = cap.convert("RGB")
+    max_width = 800
+    if cap_rgb.width > max_width:
+       scale = max_width / cap_rgb.width
+       new_size = (max_width, int(cap_rgb.height * scale))
+       cap_rgb = cap_rgb.resize(new_size)
+    else:
+      scale = 1.0
+
+    w, h = cap_rgb.size
+
+    # ✅ Now convert to data URI
+    cap_datauri = pil_to_datauri(cap_rgb)
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
@@ -234,6 +254,7 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
 
