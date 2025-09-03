@@ -1,5 +1,6 @@
 import os
 import sys
+import io
 
 import cv2
 import matplotlib.pyplot as plt
@@ -28,7 +29,7 @@ def load_image(path):
 
 def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
     df = pd.read_excel(file_path, header=None)
-    subset = df.iloc[start_row - 1 : end_row, [1, 2]].dropna()
+    subset = df.iloc[start_row - 1: end_row, [1, 2]].dropna()
     subset.columns = [column1, column2]
     return subset.values.tolist()
 
@@ -77,7 +78,7 @@ if excel_file:
     end_row = st.number_input("End Row (1-indexed)", min_value=1, value=total_rows, step=1)
 
     if st.button("📥 Fetch Data from Excel"):
-        subset = df.iloc[start_row - 1 : end_row, [1, 2]].dropna()
+        subset = df.iloc[start_row - 1: end_row, [1, 2]].dropna()
 
         if key_col_input and value_col_input:
             subset.columns = [key_col_input, value_col_input]
@@ -142,7 +143,8 @@ with col_h:
 st.subheader("Step 3: Upload and Place Logo on Cap")
 
 st.info(
-    "**HOW TO USE:** 1. Click 4 corners in clockwise order (Top-Left → Top-Right → Bottom-Right → Bottom-Left). **2. Double-click the 4th point to finalize the shape.** A preview will then appear."
+    "**HOW TO USE:** 1. Click 4 corners in clockwise order (Top-Left → Top-Right → Bottom-Right → Bottom-Left). "
+    "**2. Double-click the 4th point to finalize the shape.** A preview will then appear."
 )
 
 cap_file = st.file_uploader(
@@ -170,12 +172,18 @@ if cap_file:
     display_size = (max_width, int(cap_image.height * scale))
     cap_resized = cap_image.resize(display_size).convert("RGB")
 
-    # ✅ FIX: directly pass resized PIL image (no NumPy conversion)
+    # ✅ Convert to BytesIO for Streamlit Cloud compatibility
+    img_bytes = io.BytesIO()
+    cap_resized.save(img_bytes, format="PNG")
+    img_bytes.seek(0)
+    cap_resized_for_canvas = Image.open(img_bytes)
+
+    # ✅ Show the image as background in canvas
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_resized,   # ✅ fixed line
+        background_image=cap_resized_for_canvas,
         update_streamlit=True,
         height=display_size[1],
         width=display_size[0],
