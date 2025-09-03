@@ -59,6 +59,9 @@ if "current_cap_filename" not in st.session_state:
 if "canvas_json" not in st.session_state:
     st.session_state.canvas_json = None
 
+if "preview_image_path" not in st.session_state:
+    st.session_state.preview_image_path = None
+
 # --- STEP 0: UPLOAD EXCEL ---
 st.subheader("Step 0: Upload Excel & Select Data Range")
 excel_file = st.file_uploader("Upload Excel File", type=["xlsx", "xls"], key="excel_upload")
@@ -129,13 +132,15 @@ st.info(
 )
 
 cap_file = st.file_uploader("Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key="cap_upload")
+
 if cap_file:
     cap_filename = f"cap_{cap_file.name}"
 
-
     if cap_filename != st.session_state.current_cap_filename:
+        # One-time processing for a new image
         cap_path = os.path.join("uploads", cap_filename)
         os.makedirs("uploads", exist_ok=True)
+
         cap_image = Image.open(cap_file).convert("RGBA")
         if cap_path.lower().endswith((".jpg", ".jpeg")):
             cap_image = cap_image.convert("RGB")
@@ -154,8 +159,11 @@ if cap_file:
         }
         st.session_state.current_cap_filename = cap_filename
         st.session_state.canvas_json = None
+        # --- CRITICAL FIX: Reset preview when new image is uploaded ---
+        st.session_state.preview_image_path = None
+
+
 if st.session_state.current_cap_filename:
-    # Retrieve all needed info from session_state
     cap_filename = st.session_state.current_cap_filename
     cached_data = st.session_state.cap_images[cap_filename]
     cap_path = cached_data["original_path"]
@@ -173,42 +181,61 @@ if st.session_state.current_cap_filename:
         width=display_size[0],
         drawing_mode="polygon",
         initial_drawing=st.session_state.canvas_json,
-        key="cap_canvas",
+        # --- CRITICAL FIX 1: DYNAMIC KEY ---
+        # This forces Streamlit to create a new canvas when the image changes.
+        key=f"canvas_{st.session_state.current_cap_filename}",
     )
+
     if canvas_result.json_data is not None:
         st.session_state.canvas_json = canvas_result.json_data
 
-    if st.button("✅ Process Logo") and st.session_state.logo_path:
-        json_data = st.session_state.canvas_json
-        if json_data and json_data.get("objects"):
-            last_object = json_data["objects"][-1]
-            if last_object["type"] == "path" and len(last_object["path"]) >= 4:
-                points = last_object["path"]
-                # Use the 'scale' variable retrieved from session_state
-                dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
+    # --- PROCESS LOGO (No nested buttons) ---
+    if st.button("✅ Process Logo", key="process_logo_btn"):
+        if st.session_state.logo_path:
+            json_data = st.session_state.canvas_json
+            if json_data and json_data.get("objects"):
+                last_object = json_data["objects"][-1]
+                if last_object["type"] == "path" and len(last_object["path"]) >= 4:
+                    points = last_object["path"]
+                    dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
 
-                os.makedirs("output2", exist_ok=True)
-                out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
+                    os.makedirs("output2", exist_ok=True)
+                    out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
 
-                applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
-                if applied:
-                    st.image(applied, caption="Preview", width=400)
+                    applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
+                    if applied:
+                        # --- CRITICAL FIX 2: DECOUPLING BUTTONS ---
+                        # Instead of nesting, we save the result to session_state
+                        st.session_state.preview_image_path = out_path
+                else:
+                    st.warning("Please draw a 4-point polygon on the canvas first.")
+            else:
+                st.warning("Please draw on the canvas first.")
+        else:
+            st.error("Please upload a logo in Step 1 first.")
 
-                if st.button("💾 Save Cap"):
-                    ai_desc = ai_generate_description(
-                        placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
-                    )
-                    st.session_state.results.append(
-                        {
-                            "image": cap_path,
-                            "logo": st.session_state.logo_path,
-                            "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
-                            "placement": placement,
-                            "description": ai_desc,
-                            "output": out_path,
-                        }
-                    )
-                    st.success("Cap saved! Upload another image or generate report below.")
+# --- NEW SECTION: Display Preview and Save Button (Decoupled) ---
+if st.session_state.preview_image_path:
+    st.image(st.session_state.preview_image_path, caption="Preview", width=400)
+
+    if st.button("💾 Save Cap", key="save_cap_btn"):
+        placement = st.session_state.placement  # Make sure placement is in session_state
+        base_cap_name = st.session_state.current_cap_filename.replace("cap_", "", 1)
+        ai_desc = ai_generate_description(placement, (st.session_state.w_cm, st.session_state.h_cm), base_cap_name)
+        st.session_state.results.append(
+            {
+                "image": st.session_state.cap_images[st.session_state.current_cap_filename]["original_path"],
+                "logo": st.session_state.logo_path,
+                "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
+                "placement": placement,
+                "description": ai_desc,
+                "output": st.session_state.preview_image_path,
+            }
+        )
+        st.success("Cap saved! Upload another image or generate report below.")
+        # Clear the preview after saving
+        st.session_state.preview_image_path = None
+        st.rerun()  # Use st.rerun for a cleaner UI update after saving
 
 # --- FINAL REPORT ---
 if st.session_state.results:
