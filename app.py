@@ -149,20 +149,26 @@ if cap_file:
     else:
         cap = load_image(cap_path)
 
-    # Resize dynamically but keep it within bounds
+    # ✅ Always convert to RGB before numpy conversion
+    cap_rgb = cap.convert("RGB")
 
-    w, h = cap.width, cap.height
-    scale_x, scale_y = 1.0, 1.0  # no scaling needed
+    # Optional: resize to avoid too large canvas
+    max_width = 800
+    if cap_rgb.width > max_width:
+        scale = max_width / cap_rgb.width
+        new_size = (max_width, int(cap_rgb.height * scale))
+        cap_rgb = cap_rgb.resize(new_size)
+    else:
+        scale = 1.0
 
-    # ✅ Ensure PIL.Image is passed
-    if not isinstance(cap, Image.Image):
-        cap = Image.fromarray(cap)
+    w, h = cap_rgb.width, cap_rgb.height
+    cap_np = np.array(cap_rgb)   # ✅ Convert PIL → NumPy
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap,   # ✅ fixed for deployment
+        background_image=cap_np,   # ✅ NumPy array for deployment
         width=w,
         height=h,
         update_streamlit=True,
@@ -175,8 +181,8 @@ if cap_file:
         if last_object["type"] == "path" and len(last_object["path"]) == 5:
             points = last_object["path"]
 
-            # Convert to original image coordinates
-            dest_points = [(p[1] * scale_x, p[2] * scale_y) for p in points[:4]]
+            # Convert back to original image coordinates (undo scale)
+            dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
 
             if st.session_state.logo_path:
                 os.makedirs("output2", exist_ok=True)
@@ -227,4 +233,5 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
