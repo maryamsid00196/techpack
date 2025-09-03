@@ -144,9 +144,9 @@ if cap_file:
     max_width = 400
     scale = max_width / cap.width
     new_size = (max_width, int(cap.height * scale))
-    cap_resized = cap.resize(new_size)
+    # cap_resized = cap.resize(new_size)
 
-    background_pil = cap_resized.resize(display_size).convert("RGB")
+    background_pil = cap.resize(new_size).convert("RGB")
     if not isinstance(background_pil, Image.Image):
        background_pil = cap_resized.fromarray(np.array(background_pil))
 
@@ -216,6 +216,7 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
 
