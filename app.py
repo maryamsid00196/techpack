@@ -1,20 +1,14 @@
 import os
-import sys
 import io
-
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
 from PIL import Image
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Image as RLImage
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Table, TableStyle
 from streamlit_drawable_canvas import st_canvas
 
 from ai_part import ai_generate_description, generate_pdf_report
@@ -41,22 +35,17 @@ os.makedirs("uploads", exist_ok=True)
 
 # ---------------- STREAMLIT CONFIG ----------------
 st.set_page_config(page_title="Logo Placement Tool", layout="wide")
-
 st.title("🧢 Tech Pack Logo Placement Tool")
 
 # Initialize session state
 if "results" not in st.session_state:
     st.session_state.results = []
-
 if "logo_path" not in st.session_state:
     st.session_state.logo_path = None
-
 if "w_cm" not in st.session_state:
     st.session_state.w_cm = 5.0
-
 if "h_cm" not in st.session_state:
     st.session_state.h_cm = 5.0
-
 if "retry" not in st.session_state:
     st.session_state.retry = False
 
@@ -68,7 +57,6 @@ excel_file = st.file_uploader("Upload Excel File", type=["xlsx", "xls"], key="ex
 
 if excel_file:
     df = pd.read_excel(excel_file, header=None)
-
     total_rows = len(df)
     st.write(f"📊 Total rows detected: {total_rows}")
 
@@ -80,7 +68,6 @@ if excel_file:
 
     if st.button("📥 Fetch Data from Excel"):
         subset = df.iloc[start_row - 1: end_row, [1, 2]].dropna()
-
         if key_col_input and value_col_input:
             subset.columns = [key_col_input, value_col_input]
         else:
@@ -107,35 +94,27 @@ if excel_file:
 st.subheader("Step 1: Upload Logo Image")
 
 logo_file = st.file_uploader("Upload Logo Image", type=["png", "jpg", "jpeg"], key="logo_upload")
-
 if logo_file:
     logo_filename = f"logo_{logo_file.name}"
     logo_path = os.path.join("assets", logo_filename)
 
     if st.session_state.logo_path is None or os.path.basename(st.session_state.logo_path) != logo_filename:
         logo = Image.open(logo_file).convert("RGBA")
-
         if logo_path.lower().endswith((".jpg", ".jpeg")):
             logo = logo.convert("RGB")
-
         logo.save(logo_path)
         st.session_state.logo_path = logo_path
-
         st.success(f"✅ Logo uploaded and saved to {logo_path}")
 
 
 # ---------------- STEP 2 ----------------
 st.subheader("Step 2: Define Approximate Logo Size (for PDF Report)")
 
-st.info(
-    "This size is for the text description in the final report. The visual size is determined by the area you draw."
-)
+st.info("This size is for the text description in the final report. The visual size is determined by the area you draw.")
 
 col_w, col_h = st.columns(2)
-
 with col_w:
     st.session_state.w_cm = st.number_input("Width (cm)", min_value=1.0, value=st.session_state.w_cm, step=0.5)
-
 with col_h:
     st.session_state.h_cm = st.number_input("Height (cm)", min_value=1.0, value=st.session_state.h_cm, step=0.5)
 
@@ -143,26 +122,19 @@ with col_h:
 # ---------------- STEP 3 ----------------
 st.subheader("Step 3: Upload and Place Logo on Cap")
 
-st.info(
-    "**HOW TO USE:** 1. Click 4 corners in clockwise order (Top-Left → Top-Right → Bottom-Right → Bottom-Left). "
-    "**2. Double-click the 4th point to finalize the shape.** A preview will then appear."
-)
+st.info("**HOW TO USE:** 1. Click 4 corners in clockwise order (Top-Left → Top-Right → Bottom-Right → Bottom-Left). "
+        "**2. Double-click the 4th point to finalize the shape.** A preview will then appear.")
 
-cap_file = st.file_uploader(
-    "Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key=f"cap_{len(st.session_state.results)}"
-)
+cap_file = st.file_uploader("Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key=f"cap_{len(st.session_state.results)}")
 
 if cap_file:
     cap_filename = f"cap_{cap_file.name}"
     cap_path = os.path.join("assets", cap_filename)
 
-    # Save uploaded cap image permanently
     if not os.path.exists(cap_path):
         cap_image = Image.open(cap_file).convert("RGBA")
-
         if cap_path.lower().endswith((".jpg", ".jpeg")):
             cap_image = cap_image.convert("RGB")
-
         cap_image.save(cap_path)
     else:
         cap_image = load_image(cap_path)
@@ -171,26 +143,9 @@ if cap_file:
     max_width = 300
     scale = max_width / cap_image.width
     display_size = (max_width, int(cap_image.height * scale))
+    cap_resized_for_canvas_pil = cap_image.resize(display_size).convert("RGB")
 
-    # Convert to NumPy array for safety checks
-    cap_resized_for_canvas = np.array(cap_image.resize(display_size).convert("RGB"))
-
-    # Ensure uint8 type
-    if cap_resized_for_canvas.dtype != np.uint8:
-        cap_resized_for_canvas = cap_resized_for_canvas.astype(np.uint8)
-
-    # If grayscale, convert to RGB
-    if len(cap_resized_for_canvas.shape) == 2:  # (H, W)
-        cap_resized_for_canvas = np.stack([cap_resized_for_canvas] * 3, axis=-1)
-
-    # If it has alpha channel, drop it
-    if cap_resized_for_canvas.shape[-1] == 4:  # (H, W, 4)
-        cap_resized_for_canvas = cap_resized_for_canvas[:, :, :3]
-
-    # Convert back to PIL for st_canvas
-    cap_resized_for_canvas_pil = Image.fromarray(cap_resized_for_canvas)
-
-    # ✅ Show the image as background in canvas
+    # ✅ Show image as background in canvas
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
@@ -205,7 +160,6 @@ if cap_file:
 
     if canvas_result.json_data and canvas_result.json_data["objects"]:
         last_object = canvas_result.json_data["objects"][-1]
-
         if last_object["type"] == "path" and len(last_object["path"]) == 5:
             points = last_object["path"]
             dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
@@ -213,16 +167,13 @@ if cap_file:
             if st.session_state.logo_path:
                 os.makedirs("output2", exist_ok=True)
                 out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
-
                 applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
 
                 if applied:
                     st.image(applied, caption="Preview", width=400)
 
                     placement = st.text_input(
-                        "Placement description (e.g., Front Panel)",
-                        "Front Panel",
-                        key=f"placement_{len(st.session_state.results)}",
+                        "Placement description (e.g., Front Panel)", "Front Panel", key=f"placement_{len(st.session_state.results)}"
                     )
 
                     if st.button("✅ Save This Cap", key=f"save_{len(st.session_state.results)}"):
@@ -241,9 +192,43 @@ if cap_file:
                                 "output": out_path,
                             }
                         )
-
                         st.success("Cap saved! Upload another image or generate the report below.")
                         st.experimental_rerun()
+
+
+# ---------------- EXTRA FEATURE: Dynamic Upload + Polygon Drawing ----------------
+st.markdown("---")
+st.header("📌 Dynamic Image Upload + Polygon Drawing (Extra Tool)")
+
+uploaded_file = st.file_uploader("Upload an image for polygon drawing", type=["png", "jpg", "jpeg"], key="dynamic_upload")
+
+if uploaded_file:
+    cap_image = Image.open(uploaded_file)
+    max_width = 600
+    scale = max_width / cap_image.width
+    display_size = (max_width, int(cap_image.height * scale))
+    cap_resized_for_canvas = cap_image.resize(display_size).convert("RGB")
+
+    st.image(cap_resized_for_canvas, caption="Uploaded Image Preview", use_column_width=False)
+
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",
+        stroke_width=2,
+        stroke_color="red",
+        background_image=cap_resized_for_canvas,
+        update_streamlit=True,
+        height=display_size[1],
+        width=display_size[0],
+        drawing_mode="polygon",
+        key=f"canvas_dynamic_{len(st.session_state.results)}",
+    )
+
+    if canvas_result.json_data and canvas_result.json_data["objects"]:
+        st.session_state.results.append(canvas_result.json_data)
+        st.success("Polygon saved from dynamic upload!")
+        st.json(st.session_state.results[-1])
+else:
+    st.info("👆 Upload an image to start drawing polygons.")
 
 
 # ---------------- FINAL REPORT ----------------
@@ -253,13 +238,12 @@ if st.session_state.results:
     st.write(f"📦 You have added **{len(st.session_state.results)}** cap views so far.")
 
     cols = st.columns(min(len(st.session_state.results), 4))
-
     for i, result in enumerate(st.session_state.results):
-        with cols[i % 4]:
-            st.image(result["output"], caption=result["placement"], use_column_width=200)
+        if isinstance(result, dict) and "output" in result:  # Only show processed caps
+            with cols[i % 4]:
+                st.image(result["output"], caption=result["placement"], use_column_width=200)
 
     if st.button("📄 Generate PDF Report"):
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
-
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
