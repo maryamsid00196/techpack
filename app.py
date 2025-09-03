@@ -140,10 +140,9 @@ if cap_file:
     else:
         cap = load_image(cap_path)
     
-    st.image(cap, caption="Preview of uploaded image")
     
     # Resize dynamically but keep it within bounds (avoid too large images)
-    max_w, max_h = 800, 600
+    max_w, max_h = 200, 200
     w = min(cap.width, max_w)
     h = min(cap.height, max_h)
     cap_resized = cap.resize((w, h)).convert("RGB")
@@ -216,6 +215,7 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
 
