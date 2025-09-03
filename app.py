@@ -16,7 +16,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Image as RLImage
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from streamlit_drawable_canvas import st_canvas
-
+import numpy as np
 from ai_part import ai_generate_description, generate_pdf_report
 from opencv_logic import apply_logo_realistic
 
@@ -172,12 +172,16 @@ if cap_file:
     scale = max_width / cap_image.width
     display_size = (max_width, int(cap_image.height * scale))
     cap_resized = cap_image.resize(display_size)
-    cap_resized_np = np.array(cap_resized.convert("RGB"))
+
+
+     # Convert to numpy array
+    cap_resized_np = np.array(cap_resized)
+
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_resized_np,
+        background_image=cap_resized_np,   # ✅ pass numpy array instead of PIL image
         update_streamlit=True,
         height=display_size[1],
         width=display_size[0],
@@ -244,4 +248,5 @@ if st.session_state.results:
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
