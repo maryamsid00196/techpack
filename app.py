@@ -131,10 +131,11 @@ st.info(
 cap_file = st.file_uploader("Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key="cap_upload")
 if cap_file:
     cap_filename = f"cap_{cap_file.name}"
-    cap_path = os.path.join("uploads", cap_filename)
-    os.makedirs("uploads", exist_ok=True)
+
 
     if cap_filename != st.session_state.current_cap_filename:
+        cap_path = os.path.join("uploads", cap_filename)
+        os.makedirs("uploads", exist_ok=True)
         cap_image = Image.open(cap_file).convert("RGBA")
         if cap_path.lower().endswith((".jpg", ".jpeg")):
             cap_image = cap_image.convert("RGB")
@@ -151,8 +152,8 @@ if cap_file:
             "scale": scale,
             "display_size": display_size,
         }
-    st.session_state.current_cap_filename = cap_filename
-    st.session_state.canvas_json = None
+        st.session_state.current_cap_filename = cap_filename
+        st.session_state.canvas_json = None
 if st.session_state.current_cap_filename:
     # Retrieve all needed info from session_state
     cap_filename = st.session_state.current_cap_filename
