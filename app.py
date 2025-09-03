@@ -167,7 +167,7 @@ if cap_file:
         cap_image = load_image(cap_path)
 
     # ✅ Resize for canvas
-    max_width = 600
+    max_width = 300
     scale = max_width / cap_image.width
     display_size = (max_width, int(cap_image.height * scale))
     cap_resized = cap_image.resize(display_size).convert("RGB")
@@ -251,4 +251,5 @@ if st.session_state.results:
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
