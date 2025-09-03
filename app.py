@@ -6,7 +6,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.platypus import Table, TableStyle
 from streamlit_drawable_canvas import st_canvas
-
+import time
 from ai_part import ai_generate_description, generate_pdf_report
 from opencv_logic import apply_logo_realistic
 
@@ -157,8 +157,7 @@ if cap_file:
         key="cap_canvas",
         update_streamlit=False,  # prevents constant rerun
     )
-import time
-time.sleep(1)  
+    time.sleep(1)  
 
 
 # --- PROCESS AND SAVE LOGO ---
@@ -203,5 +202,6 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
