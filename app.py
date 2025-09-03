@@ -1,6 +1,5 @@
 import os
 import sys
-import re
 
 import cv2
 import matplotlib.pyplot as plt
@@ -16,19 +15,9 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Image as RLImage
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from streamlit_drawable_canvas import st_canvas
-import numpy as np
+
 from ai_part import ai_generate_description, generate_pdf_report
 from opencv_logic import apply_logo_realistic
-
-
-# ✅ Ensure directories exist
-os.makedirs("uploads", exist_ok=True)
-os.makedirs("output2", exist_ok=True)
-
-
-# ✅ Sanitize filenames (remove spaces, brackets, etc.)
-def clean_filename(filename):
-    return re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
 
 
 @st.cache_data(show_spinner=False)
@@ -46,7 +35,6 @@ def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
 st.set_page_config(page_title="Logo Placement Tool", layout="wide")
 
 st.title("🧢 Tech Pack Logo Placement Tool")
-
 
 if "results" not in st.session_state:
     st.session_state.results = []
@@ -112,16 +100,20 @@ st.subheader("Step 1: Upload Logo Image")
 logo_file = st.file_uploader("Upload Logo Image", type=["png", "jpg", "jpeg"], key="logo_upload")
 
 if logo_file:
-    logo_filename = f"logo_{clean_filename(logo_file.name)}"
-    logo_path = os.path.join("uploads", logo_filename)
+    logo_filename = f"logo_{logo_file.name}"
 
     if st.session_state.logo_path is None or os.path.basename(st.session_state.logo_path) != logo_filename:
+        os.makedirs("uploads", exist_ok=True)
+
+        logo_path = os.path.join("uploads", logo_filename)
+
         logo = Image.open(logo_file).convert("RGBA")
 
         if logo_path.lower().endswith((".jpg", ".jpeg")):
             logo = logo.convert("RGB")
 
         logo.save(logo_path)
+
         st.session_state.logo_path = logo_path
 
         st.success("✅ Logo uploaded.")
@@ -155,10 +147,12 @@ cap_file = st.file_uploader(
 )
 
 if cap_file:
-    cap_filename = f"cap_{clean_filename(cap_file.name)}"
+    cap_filename = f"cap_{cap_file.name}"
     cap_path = os.path.join("uploads", cap_filename)
 
     if not os.path.exists(cap_path):
+        os.makedirs("uploads", exist_ok=True)
+
         cap_image = Image.open(cap_file).convert("RGBA")
 
         if cap_path.lower().endswith((".jpg", ".jpeg")):
@@ -168,20 +162,21 @@ if cap_file:
     else:
         cap_image = load_image(cap_path)
 
+    # ✅ Resize for canvas
     max_width = 600
     scale = max_width / cap_image.width
     display_size = (max_width, int(cap_image.height * scale))
     cap_resized = cap_image.resize(display_size)
 
-
-     # Convert to numpy array
-    cap_resized_np = np.array(cap_resized)
+    # ✅ Force convert to RGB (important for Streamlit Cloud)
+    if cap_resized.mode != "RGB":
+        cap_resized = cap_resized.convert("RGB")
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_resized_np,   # ✅ pass numpy array instead of PIL image
+        background_image=cap_resized,
         update_streamlit=True,
         height=display_size[1],
         width=display_size[0],
@@ -197,6 +192,8 @@ if cap_file:
             dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
 
             if st.session_state.logo_path:
+                os.makedirs("output2", exist_ok=True)
+
                 out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
 
                 applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
@@ -248,5 +245,3 @@ if st.session_state.results:
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
-
-
