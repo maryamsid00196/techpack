@@ -160,8 +160,6 @@ if cap_file:
 import time
 time.sleep(1)  
 
-# --- Placement description ---
-placement = st.text_input("Placement description (e.g., Front Panel)", value=st.session_state.placement, key="placement")
 
 # --- PROCESS AND SAVE LOGO ---
 if st.button("✅ Process Logo") and cap_file and st.session_state.logo_path:
@@ -205,4 +203,5 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
