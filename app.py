@@ -144,13 +144,15 @@ if cap_file:
     scale = max_width / cap_image.width
     display_size = (max_width, int(cap_image.height * scale))
     cap_resized_for_canvas_pil = cap_image.resize(display_size).convert("RGB")
+    # Ensure background image is PIL.Image
+    background_pil = Image.fromarray(np.array(cap_resized_for_canvas))
 
     # ✅ Show image as background in canvas
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_resized_for_canvas_pil,
+        background_image=background_pil,
         update_streamlit=True,
         height=display_size[1],
         width=display_size[0],
@@ -196,40 +198,6 @@ if cap_file:
                         st.experimental_rerun()
 
 
-# ---------------- EXTRA FEATURE: Dynamic Upload + Polygon Drawing ----------------
-st.markdown("---")
-st.header("📌 Dynamic Image Upload + Polygon Drawing (Extra Tool)")
-
-uploaded_file = st.file_uploader("Upload an image for polygon drawing", type=["png", "jpg", "jpeg"], key="dynamic_upload")
-
-if uploaded_file:
-    cap_image = Image.open(uploaded_file)
-    max_width = 600
-    scale = max_width / cap_image.width
-    display_size = (max_width, int(cap_image.height * scale))
-    cap_resized_for_canvas = cap_image.resize(display_size).convert("RGB")
-
-    st.image(cap_resized_for_canvas, caption="Uploaded Image Preview", use_column_width=False)
-
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.3)",
-        stroke_width=2,
-        stroke_color="red",
-        background_image=cap_resized_for_canvas,
-        update_streamlit=True,
-        height=display_size[1],
-        width=display_size[0],
-        drawing_mode="polygon",
-        key=f"canvas_dynamic_{len(st.session_state.results)}",
-    )
-
-    if canvas_result.json_data and canvas_result.json_data["objects"]:
-        st.session_state.results.append(canvas_result.json_data)
-        st.success("Polygon saved from dynamic upload!")
-        st.json(st.session_state.results[-1])
-else:
-    st.info("👆 Upload an image to start drawing polygons.")
-
 
 # ---------------- FINAL REPORT ----------------
 if st.session_state.results:
@@ -247,3 +215,4 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
