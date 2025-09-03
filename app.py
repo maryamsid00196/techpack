@@ -156,8 +156,8 @@ if cap_file:
            stroke_color="red",
            background_image=background_pil, 
            update_streamlit=True,
-           height=display_size[1],
-           width=display_size[0],
+           #height=display_size[1],
+           #width=display_size[0],
            drawing_mode="polygon",
            key=f"canvas_dynamic_{len(st.session_state.results)}",
        )
@@ -216,6 +216,7 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
 
