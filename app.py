@@ -146,18 +146,21 @@ if cap_file:
     new_size = (max_width, int(cap.height * scale))
     cap_resized = cap.resize(new_size)
 
-    canvas_result = st_canvas(
-        fill_color="rgba(0, 0, 0, 0)",
-        stroke_width=1,
-        stroke_color="red",
-        background_image=np.array(cap_resized), 
-        update_streamlit=True,
-        height=cap_resized.height,
-        width=cap_resized.width,
-        drawing_mode="point",
-        key=f"canvas_{len(st.session_state.results)}",
-    )
+    background_pil = cap_image.resize(display_size).convert("RGB")
+    if not isinstance(background_pil, Image.Image):
+       background_pil = Image.fromarray(np.array(background_pil))
 
+    canvas_result = st_canvas(
+           fill_color="rgba(255, 165, 0, 0.3)",
+           stroke_width=2,
+           stroke_color="red",
+           background_image=background_pil,  # ✅ safe PIL image
+           update_streamlit=True,
+           height=display_size[1],
+           width=display_size[0],
+           drawing_mode="polygon",
+           key=f"canvas_dynamic_{len(st.session_state.results)}",
+       )
     if canvas_result.json_data and canvas_result.json_data["objects"]:
         last_object = canvas_result.json_data["objects"][-1]
         if last_object["type"] == "path" and len(last_object["path"]) == 5:
@@ -213,6 +216,7 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
 
