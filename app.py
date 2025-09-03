@@ -56,6 +56,8 @@ if "placement" not in st.session_state:
 
 if "current_cap_filename" not in st.session_state:
     st.session_state.current_cap_filename = None
+if "canvas_json" not in st.session_state:
+    st.session_state.canvas_json = None
 
 # --- STEP 0: UPLOAD EXCEL ---
 st.subheader("Step 0: Upload Excel & Select Data Range")
@@ -132,7 +134,7 @@ if cap_file:
     cap_path = os.path.join("uploads", cap_filename)
     os.makedirs("uploads", exist_ok=True)
 
-    if cap_filename not in st.session_state.cap_images:
+    if cap_filename != st.session_state.current_cap_filename:
         cap_image = Image.open(cap_file).convert("RGBA")
         if cap_path.lower().endswith((".jpg", ".jpeg")):
             cap_image = cap_image.convert("RGB")
@@ -150,9 +152,8 @@ if cap_file:
             "display_size": display_size,
         }
     st.session_state.current_cap_filename = cap_filename
-
+    st.session_state.canvas_json = None
 if st.session_state.current_cap_filename:
-    
     # Retrieve all needed info from session_state
     cap_filename = st.session_state.current_cap_filename
     cached_data = st.session_state.cap_images[cap_filename]
@@ -170,13 +171,16 @@ if st.session_state.current_cap_filename:
         height=display_size[1],
         width=display_size[0],
         drawing_mode="polygon",
+        initial_drawing=st.session_state.canvas_json,
         key="cap_canvas",
     )
+    if canvas_result.json_data is not None:
+        st.session_state.canvas_json = canvas_result.json_data
 
- 
     if st.button("✅ Process Logo") and st.session_state.logo_path:
-        if canvas_result.json_data and canvas_result.json_data.get("objects"):
-            last_object = canvas_result.json_data["objects"][-1]
+        json_data = st.session_state.canvas_json
+        if json_data and json_data.get("objects"):
+            last_object = json_data["objects"][-1]
             if last_object["type"] == "path" and len(last_object["path"]) >= 4:
                 points = last_object["path"]
                 # Use the 'scale' variable retrieved from session_state
