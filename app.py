@@ -128,10 +128,10 @@ st.info("**HOW TO USE:** 1. Click 4 corners in clockwise order (Top-Left → Top
 cap_file = st.file_uploader("Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key=f"cap_{len(st.session_state.results)}")
 
 if cap_file:
-    # Save cap only once
-    cap_path = os.path.join("uploads", cap_file.name)
+    cap_filename = cap_file.name
+    cap_path = os.path.join("uploads", cap_filename)
+
     if not os.path.exists(cap_path):
-        os.makedirs("uploads", exist_ok=True)
         cap = Image.open(cap_file).convert("RGBA")
         if cap_path.lower().endswith((".jpg", ".jpeg")):
             cap.convert("RGB").save(cap_path)
@@ -139,39 +139,44 @@ if cap_file:
             cap.save(cap_path)
     else:
         cap = load_image(cap_path)
-    
-    
+
     # Resize dynamically but keep it within bounds (avoid too large images)
-    max_w, max_h = 200, 200
+    max_w, max_h = 600, 600
     w = min(cap.width, max_w)
     h = min(cap.height, max_h)
     cap_resized = cap.resize((w, h)).convert("RGB")
 
+    # Scale factor for mapping canvas → original image
+    scale_x = cap.width / w
+    scale_y = cap.height / h
+
     canvas_result = st_canvas(
-           fill_color="rgba(255, 165, 0, 0.3)",
-           stroke_width=2,
-           stroke_color="red",
-           background_image=cap_resized,
-           width=w,
-           height=h, 
-           update_streamlit=True,
-           #height=display_size[1],
-           #width=display_size[0],
-           drawing_mode="polygon",
-           key=f"canvas_dynamic_{len(st.session_state.results)}",
-       )
+        fill_color="rgba(255, 165, 0, 0.3)",
+        stroke_width=2,
+        stroke_color="red",
+        background_image=cap_resized,
+        width=w,
+        height=h,
+        update_streamlit=True,
+        drawing_mode="polygon",
+        key=f"canvas_dynamic_{len(st.session_state.results)}",
+    )
+
     if canvas_result.json_data and canvas_result.json_data["objects"]:
         last_object = canvas_result.json_data["objects"][-1]
         if last_object["type"] == "path" and len(last_object["path"]) == 5:
             points = last_object["path"]
-            dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
+
+            # Convert to original image coordinates
+            dest_points = [(p[1] * scale_x, p[2] * scale_y) for p in points[:4]]
 
             if st.session_state.logo_path:
                 os.makedirs("output2", exist_ok=True)
                 out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
+
                 applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
 
-                if applied:
+                if applied is not None:
                     st.image(applied, caption="Preview", width=400)
 
                     placement = st.text_input(
@@ -189,14 +194,13 @@ if cap_file:
                                 "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
                                 "placement": placement,
                                 "description": ai_desc,
-                                "orig_width": 600,
-                                "orig_height": 600,
+                                "orig_width": cap.width,
+                                "orig_height": cap.height,
                                 "output": out_path,
                             }
                         )
                         st.success("Cap saved! Upload another image or generate the report below.")
                         st.experimental_rerun()
-
 
 
 # ---------------- FINAL REPORT ----------------
@@ -215,21 +219,3 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
