@@ -157,48 +157,51 @@ if cap_file:
         update_streamlit=False,  # no auto rerun
     )
 
-    st.write("🎨 Draw your logo placement polygon. Click 'Process Logo' when done.")
+    If canvas_result.json_data and canvas_result.json_data["objects"]:
+        last_object = canvas_result.json_data["objects"][-1]
 
-    # --- BUTTON TO PROCESS LOGO ---
-    if st.button("Process Logo"):
-        if canvas_result.json_data and "objects" in canvas_result.json_data:
-            st.session_state.canvas_objects[cap_filename] = canvas_result.json_data["objects"]
+        if last_object["type"] == "path" and len(last_object["path"]) == 5:
+            points = last_object["path"]
 
-            objects = st.session_state.canvas_objects.get(cap_filename, [])
-            if objects and st.session_state.logo_path:
-                last_object = objects[-1]
-                if last_object["type"] == "path":
-                    points = [p[1:3] for p in last_object["path"] if len(p) >= 3]
-                    if len(points) >= 4:
-                        dest_points = [(x / scale, y / scale) for x, y in points[:4]]
-                        os.makedirs("output2", exist_ok=True)
-                        out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
+            dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
 
-                        applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
-                        if applied:
-                            st.image(applied, caption="Preview", width=400)
+            if st.session_state.logo_path:
+                os.makedirs("output2", exist_ok=True)
 
-                            placement_key = f"placement_{cap_filename}"
-                            placement = st.text_input(
-                                "Placement description (e.g., Front Panel)",
-                                "Front Panel",
-                                key=placement_key
-                            )
+                out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
 
-                            save_key = f"save_{cap_filename}"
-                            if st.button("✅ Save This Cap", key=save_key):
-                                ai_desc = ai_generate_description(
-                                    placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
-                                )
-                                st.session_state.results.append({
-                                    "image": cap_path,
-                                    "logo": st.session_state.logo_path,
-                                    "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
-                                    "placement": placement,
-                                    "description": ai_desc,
-                                    "output": out_path,
-                                })
-                                st.success("Cap saved! Upload another image or generate the report below.")
+                applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
+
+                if applied:
+                    st.image(applied, caption="Preview", width=400)
+
+                    placement = st.text_input(
+                        "Placement description (e.g., Front Panel)",
+                        "Front Panel",
+                        key=f"placement_{len(st.session_state.results)}",
+                    )
+
+                    if st.button("✅ Save This Cap", key=f"save_{len(st.session_state.results)}"):
+                        ai_desc = ai_generate_description(
+                            placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
+                        )
+                        #orig_width, orig_height = 600
+                        st.session_state.results.append(
+                            {
+                                "image": cap_path,
+                                "logo": st.session_state.logo_path,
+                                "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
+                                "placement": placement,
+                                "description": ai_desc,
+                                "orig_width": 600,
+                                "orig_height": 600,
+                                "output": out_path,
+                            }
+                        )
+
+                        st.success("Cap saved! Upload another image or generate the report below.")
+
+                        st.experimental_rerun()
 
 # --- FINAL REPORT ---
 if st.session_state.results:
@@ -215,4 +218,5 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
