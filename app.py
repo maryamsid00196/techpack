@@ -71,7 +71,7 @@ if excel_file:
     value_col_input = st.text_input("Enter column name for Values (renamed)").strip()
 
     start_row = st.number_input("Start Row (1-indexed)", min_value=1, max_value=total_rows, value=1, step=1)
-    end_row = st.number_input("End Row (1-indexed)", min_value=1, value=total_rows, step=1)
+    end_row = st.number_input("End Row (1-indexed)", min_value=1, max_value=total_rows, value=total_rows, step=1)
 
     if st.button("📥 Fetch Data from Excel"):
         subset = df.iloc[start_row - 1 : end_row, [1, 2]].dropna()
@@ -185,7 +185,7 @@ if cap_file:
         height=display_size[1],
         width=display_size[0],
         drawing_mode="polygon",
-        key=f"cap_canvas_{st.session_state.cap_index}"
+        key=f"canvas_{len(st.session_state.results)}",
     )
 
     if canvas_result.json_data and canvas_result.json_data["objects"]:
@@ -216,7 +216,7 @@ if cap_file:
                         ai_desc = ai_generate_description(
                             placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
                         )
-                        #orig_width, orig_height = 600
+
                         st.session_state.results.append(
                             {
                                 "image": cap_path,
@@ -224,8 +224,6 @@ if cap_file:
                                 "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
                                 "placement": placement,
                                 "description": ai_desc,
-                                "orig_width": 600,
-                                "orig_height": 600,
                                 "output": out_path,
                             }
                         )
@@ -245,11 +243,10 @@ if st.session_state.results:
 
     for i, result in enumerate(st.session_state.results):
         with cols[i % 4]:
-            st.image(result["output"], caption=result["placement"], use_column_width=200)
+            st.image(result["output"], caption=result["placement"], use_column_width=True)
 
     if st.button("📄 Generate PDF Report"):
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
-
