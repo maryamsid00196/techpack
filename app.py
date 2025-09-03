@@ -143,7 +143,7 @@ if cap_file:
         scale = cached["scale"]
         display_size = cached["display_size"]
 
-    # Canvas key must be consistent
+    # --- DISPLAY CANVAS ---
     canvas_key = f"canvas_{cap_filename}"
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
@@ -154,7 +154,7 @@ if cap_file:
         width=display_size[0],
         drawing_mode="polygon",
         key=canvas_key,
-        update_streamlit=True,
+        update_streamlit=False,  # prevent constant refresh
     )
 
     # Store polygon objects to preserve across reruns
@@ -177,9 +177,11 @@ if cap_file:
                     st.image(applied, caption="Preview", width=400)
 
                     placement_key = f"placement_{cap_filename}"
-                    placement = st.text_input("Placement description (e.g., Front Panel)",
-                                              "Front Panel",
-                                              key=placement_key)
+                    placement = st.text_input(
+                        "Placement description (e.g., Front Panel)",
+                        "Front Panel",
+                        key=placement_key
+                    )
 
                     save_key = f"save_{cap_filename}"
                     if st.button("✅ Save This Cap", key=save_key):
