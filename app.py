@@ -163,12 +163,12 @@ if cap_file:
 
     w, h = cap_rgb.width, cap_rgb.height
     cap_np = np.array(cap_rgb)   # ✅ Convert PIL → NumPy
-
+    cap_pil = Image.fromarray(cap_np)
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_np,   # ✅ NumPy array for deployment
+        background_image=cap_pil,   # ✅ NumPy array for deployment
         width=w,
         height=h,
         update_streamlit=True,
@@ -233,5 +233,6 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
