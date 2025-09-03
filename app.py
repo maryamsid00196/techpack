@@ -172,13 +172,13 @@ if cap_file:
     scale = max_width / cap_image.width
     display_size = (max_width, int(cap_image.height * scale))
     cap_resized_for_canvas = cap_image.resize(display_size).convert("RGB")
-
+    cap_resized_for_canvas_pil = Image.fromarray(cap_resized_for_canvas)
     # ✅ Show the image as background in canvas
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_resized_for_canvas,  # ✅ Fixed
+        background_image=cap_resized_for_canvas_pil,  # ✅ Fixed
         update_streamlit=True,
         height=display_size[1],
         width=display_size[0],
@@ -246,3 +246,4 @@ if st.session_state.results:
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
