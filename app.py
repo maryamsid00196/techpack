@@ -150,24 +150,19 @@ if cap_file:
         cap = load_image(cap_path)
 
     # Resize dynamically but keep it within bounds
-    max_w, max_h = 600, 600
-    w = min(cap.width, max_w)
-    h = min(cap.height, max_h)
-    cap_resized = cap.resize((w, h)).convert("RGB")
 
-    # Scale factor for mapping canvas → original image
-    scale_x = cap.width / w
-    scale_y = cap.height / h
+    w, h = cap.width, cap.height
+    scale_x, scale_y = 1.0, 1.0  # no scaling needed
 
-    # 🔑 Convert to base64 URL for st_canvas
-    cap_b64 = pil_to_base64(cap_resized)
-    cap_url = f"data:image/png;base64,{cap_b64}"
+    # ✅ Ensure PIL.Image is passed
+    if not isinstance(cap, Image.Image):
+        cap = Image.fromarray(cap)
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_url,   # ✅ fixed for deployment
+        background_image=cap,   # ✅ fixed for deployment
         width=w,
         height=h,
         update_streamlit=True,
@@ -232,3 +227,4 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
