@@ -1,8 +1,30 @@
+# --- PAGE CONFIG MUST BE FIRST ---
+import streamlit as st
+
+st.set_page_config(page_title="Logo Placement Tool", layout="wide")
+
+# --- INITIALIZE SESSION STATE ---
+defaults = {
+    "results": [],
+    "logo_path": None,
+    "w_cm": 5.0,
+    "h_cm": 5.0,
+    "cap_images": {},
+    "canvas_objects": {},
+    "placement": "Front Panel",
+    "current_cap_filename": None,
+    "canvas_json": None,
+    "preview_image_path": None,
+}
+for key, val in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
+
+# --- NOW IMPORT HEAVY / EXTERNAL MODULES ---
 import os
 import time
 
 import pandas as pd
-import streamlit as st
 from PIL import Image
 from reportlab.lib import colors
 from reportlab.lib.units import cm
@@ -27,8 +49,6 @@ def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
     return subset.values.tolist()
 
 
-# --- STREAMLIT PAGE CONFIG ---
-st.set_page_config(page_title="Logo Placement Tool", layout="wide")
 st.title("🧢 Tech Pack Logo Placement Tool")
 
 # --- INITIALIZE SESSION STATE ---
