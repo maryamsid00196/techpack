@@ -171,32 +171,31 @@ if cap_file:
     max_width = 300
     scale = max_width / cap_image.width
     display_size = (max_width, int(cap_image.height * scale))
-    cap_resized_for_canvas = cap_image.resize(display_size).convert("RGB")
-    cap_resized_for_canvas_pil = Image.fromarray(cap_resized_for_canvas)
-    # ✅ Show the image as background in canvas
 
-    if cap_resized_for_canvas is None:
-       st.error("Background image is missing!")
-    else:
-       # Ensure uint8 type
-       if cap_resized_for_canvas.dtype != np.uint8:
-         cap_resized_for_canvas = cap_resized_for_canvas.astype(np.uint8)
+    # Convert to NumPy array for safety checks
+    cap_resized_for_canvas = np.array(cap_image.resize(display_size).convert("RGB"))
+
+    # Ensure uint8 type
+    if cap_resized_for_canvas.dtype != np.uint8:
+        cap_resized_for_canvas = cap_resized_for_canvas.astype(np.uint8)
 
     # If grayscale, convert to RGB
-       if len(cap_resized_for_canvas.shape) == 2:  # (H, W)
-         cap_resized_for_canvas = np.stack([cap_resized_for_canvas]*3, axis=-1)
+    if len(cap_resized_for_canvas.shape) == 2:  # (H, W)
+        cap_resized_for_canvas = np.stack([cap_resized_for_canvas] * 3, axis=-1)
 
     # If it has alpha channel, drop it
-      if cap_resized_for_canvas.shape[-1] == 4:  # (H, W, 4)
-         cap_resized_for_canvas = cap_resized_for_canvas[:, :, :3]
+    if cap_resized_for_canvas.shape[-1] == 4:  # (H, W, 4)
+        cap_resized_for_canvas = cap_resized_for_canvas[:, :, :3]
 
-
+    # Convert back to PIL for st_canvas
     cap_resized_for_canvas_pil = Image.fromarray(cap_resized_for_canvas)
+
+    # ✅ Show the image as background in canvas
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_resized_for_canvas_pil,  # ✅ Fixed
+        background_image=cap_resized_for_canvas_pil,
         update_streamlit=True,
         height=display_size[1],
         width=display_size[0],
@@ -264,5 +263,3 @@ if st.session_state.results:
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
-
-
