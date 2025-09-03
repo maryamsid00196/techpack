@@ -145,7 +145,10 @@ if cap_file:
     w = min(cap.width, max_w)
     h = min(cap.height, max_h)
     cap_resized = cap.resize((w, h)).convert("RGB")
-
+    buf = io.BytesIO()
+    cap_resized.save(buf, format="PNG")
+    buf.seek(0)
+    cap_resized1 = Image.open(buf) 
     # Scale factor for mapping canvas → original image
     scale_x = cap.width / w
     scale_y = cap.height / h
@@ -154,7 +157,7 @@ if cap_file:
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_resized,
+        background_image=cap_resized1,
         width=w,
         height=h,
         update_streamlit=True,
@@ -219,3 +222,4 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
