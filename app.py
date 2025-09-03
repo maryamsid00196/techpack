@@ -1,19 +1,10 @@
 import os
-import sys
-
-import cv2
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import streamlit as st
-from openai import OpenAI
+import pandas as pd
 from PIL import Image
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Image as RLImage
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Table, TableStyle
 from streamlit_drawable_canvas import st_canvas
 
 from ai_part import ai_generate_description, generate_pdf_report
@@ -24,10 +15,10 @@ from opencv_logic import apply_logo_realistic
 def load_image(path):
     return Image.open(path).convert("RGBA")
 
-# --- FUNCTION TO FETCH EXCEL DATA ---
+# --- FETCH EXCEL DATA ---
 def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
     df = pd.read_excel(file_path, header=None)
-    subset = df.iloc[start_row - 1 : end_row, [1, 2]].dropna()
+    subset = df.iloc[start_row - 1:end_row, [1, 2]].dropna()
     subset.columns = [column1, column2]
     return subset.values.tolist()
 
@@ -51,9 +42,11 @@ if "h_cm" not in st.session_state:
 if "cap_images" not in st.session_state:
     st.session_state.cap_images = {}
 
-# --- STEP 0: UPLOAD EXCEL & SELECT DATA RANGE ---
-st.subheader("Step 0: Upload Excel & Select Data Range")
+if "canvas_objects" not in st.session_state:
+    st.session_state.canvas_objects = {}
 
+# --- STEP 0: UPLOAD EXCEL ---
+st.subheader("Step 0: Upload Excel & Select Data Range")
 excel_file = st.file_uploader("Upload Excel File", type=["xlsx", "xls"], key="excel_upload")
 if excel_file:
     df = pd.read_excel(excel_file, header=None)
@@ -67,7 +60,7 @@ if excel_file:
     end_row = st.number_input("End Row (1-indexed)", min_value=1, max_value=total_rows, value=total_rows, step=1)
 
     if st.button("📥 Fetch Data from Excel"):
-        subset = df.iloc[start_row - 1 : end_row, [1, 2]].dropna()
+        subset = df.iloc[start_row - 1:end_row, [1, 2]].dropna()
         if key_col_input and value_col_input:
             subset.columns = [key_col_input, value_col_input]
         else:
@@ -96,7 +89,6 @@ if logo_file:
     logo_filename = f"logo_{logo_file.name}"
     os.makedirs("uploads", exist_ok=True)
     logo_path = os.path.join("uploads", logo_filename)
-
     if st.session_state.logo_path is None or os.path.basename(st.session_state.logo_path) != logo_filename:
         logo = Image.open(logo_file).convert("RGBA")
         if logo_path.lower().endswith((".jpg", ".jpeg")):
@@ -108,26 +100,24 @@ if logo_file:
 # --- STEP 2: DEFINE LOGO SIZE ---
 st.subheader("Step 2: Define Approximate Logo Size (for PDF Report)")
 st.info("This size is for the text description in the final report. The visual size is determined by the area you draw.")
-
 col_w, col_h = st.columns(2)
 with col_w:
     st.session_state.w_cm = st.number_input("Width (cm)", min_value=1.0, value=st.session_state.w_cm, step=0.5)
 with col_h:
     st.session_state.h_cm = st.number_input("Height (cm)", min_value=1.0, value=st.session_state.h_cm, step=0.5)
 
-# --- STEP 3: UPLOAD AND PLACE LOGO ON CAP ---
+# --- STEP 3: UPLOAD CAP IMAGE AND DISPLAY CANVAS ---
 st.subheader("Step 3: Upload and Place Logo on Cap")
 st.info(
-    "**HOW TO USE:** 1. Click 4 corners in clockwise order (Top-Left → Top-Right → Bottom-Right → Bottom-Left). **2. Double-click the 4th point to finalize the shape.** A preview will then appear."
+    "**HOW TO USE:** Click 4 corners in clockwise order (Top-Left → Top-Right → Bottom-Right → Bottom-Left). Double-click the 4th point to finalize."
 )
-
 cap_file = st.file_uploader("Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key="cap_upload")
 if cap_file:
     cap_filename = f"cap_{cap_file.name}"
     cap_path = os.path.join("uploads", cap_filename)
     os.makedirs("uploads", exist_ok=True)
 
-    # --- CACHE UPLOADED CAP IMAGE ---
+    # Cache the uploaded image
     if cap_filename not in st.session_state.cap_images:
         cap_image = Image.open(cap_file).convert("RGBA")
         if cap_path.lower().endswith((".jpg", ".jpeg")):
@@ -153,7 +143,7 @@ if cap_file:
         scale = cached["scale"]
         display_size = cached["display_size"]
 
-    # --- DISPLAY CANVAS ---
+    # Canvas key must be consistent
     canvas_key = f"canvas_{cap_filename}"
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
@@ -167,48 +157,44 @@ if cap_file:
         update_streamlit=True,
     )
 
-    # --- PROCESS POLYGON AND APPLY LOGO ---
+    # Store polygon objects to preserve across reruns
     if canvas_result.json_data and "objects" in canvas_result.json_data:
-        last_object = canvas_result.json_data["objects"][-1]
-        if last_object["type"] == "path" and st.session_state.logo_path:
+        st.session_state.canvas_objects[cap_filename] = canvas_result.json_data["objects"]
+
+    # Apply logo if polygon exists
+    objects = st.session_state.canvas_objects.get(cap_filename, [])
+    if objects and st.session_state.logo_path:
+        last_object = objects[-1]
+        if last_object["type"] == "path":
             points = [p[1:3] for p in last_object["path"] if len(p) >= 3]
             if len(points) >= 4:
                 dest_points = [(x / scale, y / scale) for x, y in points[:4]]
-
                 os.makedirs("output2", exist_ok=True)
                 out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
 
                 applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
-
                 if applied:
                     st.image(applied, caption="Preview", width=400)
 
                     placement_key = f"placement_{cap_filename}"
-                    placement = st.text_input(
-                        "Placement description (e.g., Front Panel)",
-                        "Front Panel",
-                        key=placement_key,
-                    )
+                    placement = st.text_input("Placement description (e.g., Front Panel)",
+                                              "Front Panel",
+                                              key=placement_key)
 
                     save_key = f"save_{cap_filename}"
                     if st.button("✅ Save This Cap", key=save_key):
                         ai_desc = ai_generate_description(
                             placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
                         )
-
-                        st.session_state.results.append(
-                            {
-                                "image": cap_path,
-                                "logo": st.session_state.logo_path,
-                                "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
-                                "placement": placement,
-                                "description": ai_desc,
-                                "output": out_path,
-                            }
-                        )
-
+                        st.session_state.results.append({
+                            "image": cap_path,
+                            "logo": st.session_state.logo_path,
+                            "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
+                            "placement": placement,
+                            "description": ai_desc,
+                            "output": out_path,
+                        })
                         st.success("Cap saved! Upload another image or generate the report below.")
-                        # ✅ No rerun needed
 
 # --- FINAL REPORT ---
 if st.session_state.results:
