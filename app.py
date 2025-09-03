@@ -20,6 +20,7 @@ from ai_part import ai_generate_description, generate_pdf_report
 from opencv_logic import apply_logo_realistic
 
 
+# ---------------- UTILS ----------------
 @st.cache_data(show_spinner=False)
 def load_image(path):
     return Image.open(path).convert("RGBA")
@@ -32,6 +33,12 @@ def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
     return subset.values.tolist()
 
 
+# Ensure assets & uploads folder exists
+os.makedirs("assets", exist_ok=True)
+os.makedirs("uploads", exist_ok=True)
+
+
+# ---------------- STREAMLIT CONFIG ----------------
 st.set_page_config(page_title="Logo Placement Tool", layout="wide")
 
 st.title("🧢 Tech Pack Logo Placement Tool")
@@ -101,22 +108,18 @@ logo_file = st.file_uploader("Upload Logo Image", type=["png", "jpg", "jpeg"], k
 
 if logo_file:
     logo_filename = f"logo_{logo_file.name}"
+    logo_path = os.path.join("assets", logo_filename)
 
     if st.session_state.logo_path is None or os.path.basename(st.session_state.logo_path) != logo_filename:
-        os.makedirs("uploads", exist_ok=True)
-
-        logo_path = os.path.join("uploads", logo_filename)
-
         logo = Image.open(logo_file).convert("RGBA")
 
         if logo_path.lower().endswith((".jpg", ".jpeg")):
             logo = logo.convert("RGB")
 
         logo.save(logo_path)
-
         st.session_state.logo_path = logo_path
 
-        st.success("✅ Logo uploaded.")
+        st.success(f"✅ Logo uploaded and saved to {logo_path}")
 
 
 # ---------------- STEP 2 ----------------
@@ -148,11 +151,10 @@ cap_file = st.file_uploader(
 
 if cap_file:
     cap_filename = f"cap_{cap_file.name}"
-    cap_path = os.path.join("uploads", cap_filename)
+    cap_path = os.path.join("assets", cap_filename)
 
+    # Save uploaded cap image permanently
     if not os.path.exists(cap_path):
-        os.makedirs("uploads", exist_ok=True)
-
         cap_image = Image.open(cap_file).convert("RGBA")
 
         if cap_path.lower().endswith((".jpg", ".jpeg")):
@@ -168,7 +170,6 @@ if cap_file:
     display_size = (max_width, int(cap_image.height * scale))
     cap_resized = cap_image.resize(display_size)
 
-    # ✅ Force convert to RGB (important for Streamlit Cloud)
     if cap_resized.mode != "RGB":
         cap_resized = cap_resized.convert("RGB")
 
@@ -193,7 +194,6 @@ if cap_file:
 
             if st.session_state.logo_path:
                 os.makedirs("output2", exist_ok=True)
-
                 out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
 
                 applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
