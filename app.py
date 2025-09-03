@@ -140,21 +140,12 @@ if cap_file:
     else:
         cap = load_image(cap_path)
 
-    # Resize for display only
-    max_width = 400
-    scale = max_width / cap.width
-    new_size = (max_width, int(cap.height * scale))
-    # cap_resized = cap.resize(new_size)
-
-    background_pil = cap.resize(new_size).convert("RGB")
-    if not isinstance(background_pil, Image.Image):
-       background_pil = cap_resized.fromarray(np.array(background_pil))
 
     canvas_result = st_canvas(
            fill_color="rgba(255, 165, 0, 0.3)",
            stroke_width=2,
            stroke_color="red",
-           background_image=background_pil, 
+           background_image=cap, 
            update_streamlit=True,
            #height=display_size[1],
            #width=display_size[0],
@@ -216,6 +207,7 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
 
