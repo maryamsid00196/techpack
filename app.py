@@ -3,13 +3,18 @@ import sys
 import io
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
+from openai import OpenAI
 from PIL import Image
 from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Table, TableStyle
+from reportlab.platypus import Image as RLImage
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from streamlit_drawable_canvas import st_canvas
 
 from ai_part import ai_generate_description, generate_pdf_report
@@ -29,32 +34,32 @@ def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
     return subset.values.tolist()
 
 
-def init_state():
-    """Initialize all session_state keys used anywhere below."""
-    if "results" not in st.session_state:
-        st.session_state.results = []
-    if "logo_path" not in st.session_state:
-        st.session_state.logo_path = None
-    if "w_cm" not in st.session_state:
-        st.session_state.w_cm = 5.0
-    if "h_cm" not in st.session_state:
-        st.session_state.h_cm = 5.0
-    if "retry" not in st.session_state:
-        st.session_state.retry = False
-    if "canvas_idx" not in st.session_state:
-        st.session_state.canvas_idx = 0  # stable key for canvas widgets
-
-
 # Ensure assets & uploads folder exists
 os.makedirs("assets", exist_ok=True)
 os.makedirs("uploads", exist_ok=True)
 
+
 # ---------------- STREAMLIT CONFIG ----------------
 st.set_page_config(page_title="Logo Placement Tool", layout="wide")
+
 st.title("🧢 Tech Pack Logo Placement Tool")
 
-# Initialize state BEFORE any use
-init_state()
+# Initialize session state
+if "results" not in st.session_state:
+    st.session_state.results = []
+
+if "logo_path" not in st.session_state:
+    st.session_state.logo_path = None
+
+if "w_cm" not in st.session_state:
+    st.session_state.w_cm = 5.0
+
+if "h_cm" not in st.session_state:
+    st.session_state.h_cm = 5.0
+
+if "retry" not in st.session_state:
+    st.session_state.retry = False
+
 
 # ---------------- STEP 0 ----------------
 st.subheader("Step 0: Upload Excel & Select Data Range")
@@ -109,10 +114,13 @@ if logo_file:
 
     if st.session_state.logo_path is None or os.path.basename(st.session_state.logo_path) != logo_filename:
         logo = Image.open(logo_file).convert("RGBA")
+
         if logo_path.lower().endswith((".jpg", ".jpeg")):
             logo = logo.convert("RGB")
+
         logo.save(logo_path)
         st.session_state.logo_path = logo_path
+
         st.success(f"✅ Logo uploaded and saved to {logo_path}")
 
 
@@ -124,8 +132,10 @@ st.info(
 )
 
 col_w, col_h = st.columns(2)
+
 with col_w:
     st.session_state.w_cm = st.number_input("Width (cm)", min_value=1.0, value=st.session_state.w_cm, step=0.5)
+
 with col_h:
     st.session_state.h_cm = st.number_input("Height (cm)", min_value=1.0, value=st.session_state.h_cm, step=0.5)
 
@@ -138,9 +148,8 @@ st.info(
     "**2. Double-click the 4th point to finalize the shape.** A preview will then appear."
 )
 
-# Use a stable key that doesn't depend on 'results' length to avoid init-time errors
 cap_file = st.file_uploader(
-    "Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key=f"cap_{st.session_state.canvas_idx}"
+    "Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key=f"cap_{len(st.session_state.results)}"
 )
 
 if cap_file:
@@ -150,45 +159,38 @@ if cap_file:
     # Save uploaded cap image permanently
     if not os.path.exists(cap_path):
         cap_image = Image.open(cap_file).convert("RGBA")
+
         if cap_path.lower().endswith((".jpg", ".jpeg")):
             cap_image = cap_image.convert("RGB")
+
         cap_image.save(cap_path)
     else:
         cap_image = load_image(cap_path)
 
-    # --- Prepare background for canvas: MUST be RGB numpy with matching width/height ---
-    max_width = 600  # you can tweak this
+    # ✅ Resize for canvas
+    max_width = 300
     scale = max_width / cap_image.width
     display_size = (max_width, int(cap_image.height * scale))
+    cap_resized_for_canvas = cap_image.resize(display_size).convert("RGB")
 
-    cap_resized_rgb = cap_image.resize(display_size).convert("RGB")
-    cap_resized_np = np.array(cap_resized_rgb)  # H x W x 3 uint8
-
-    # (Optional) Visual debug to verify it's correct
-    # st.image(cap_resized_np, caption="Background Preview", width=400)
-
-    # --- Canvas ---
+    # ✅ Show the image as background in canvas
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=cap_resized_np,  # ✅ correct: RGB numpy array
-        background_color=None,
+        background_image=cap_resized_for_canvas,  # ✅ Fixed
         update_streamlit=True,
         height=display_size[1],
         width=display_size[0],
         drawing_mode="polygon",
-        key=f"canvas_{st.session_state.canvas_idx}",  # ✅ stable key
+        key=f"canvas_{len(st.session_state.results)}",
     )
 
-    # --- Handle polygon ---
-    if canvas_result.json_data and canvas_result.json_data.get("objects"):
+    if canvas_result.json_data and canvas_result.json_data["objects"]:
         last_object = canvas_result.json_data["objects"][-1]
 
-        # fabric.js polygon often serialized as "path"; we expect 5 commands (M L L L z)
-        if last_object.get("type") == "path" and len(last_object.get("path", [])) == 5:
+        if last_object["type"] == "path" and len(last_object["path"]) == 5:
             points = last_object["path"]
-            # points format: [['M', x, y], ['L', x, y], ...]
             dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
 
             if st.session_state.logo_path:
@@ -203,10 +205,10 @@ if cap_file:
                     placement = st.text_input(
                         "Placement description (e.g., Front Panel)",
                         "Front Panel",
-                        key=f"placement_{st.session_state.canvas_idx}",
+                        key=f"placement_{len(st.session_state.results)}",
                     )
 
-                    if st.button("✅ Save This Cap", key=f"save_{st.session_state.canvas_idx}"):
+                    if st.button("✅ Save This Cap", key=f"save_{len(st.session_state.results)}"):
                         ai_desc = ai_generate_description(
                             placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
                         )
@@ -217,13 +219,11 @@ if cap_file:
                                 "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
                                 "placement": placement,
                                 "description": ai_desc,
-                                "orig_width": cap_image.width,
-                                "orig_height": cap_image.height,
+                                "orig_width": 600,
+                                "orig_height": 600,
                                 "output": out_path,
                             }
                         )
-                        # increment canvas key index so next upload gets a fresh key
-                        st.session_state.canvas_idx += 1
 
                         st.success("Cap saved! Upload another image or generate the report below.")
                         st.experimental_rerun()
@@ -239,7 +239,7 @@ if st.session_state.results:
 
     for i, result in enumerate(st.session_state.results):
         with cols[i % 4]:
-            st.image(result["output"], caption=result["placement"], use_column_width=True)
+            st.image(result["output"], caption=result["placement"], use_column_width=200)
 
     if st.button("📄 Generate PDF Report"):
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
