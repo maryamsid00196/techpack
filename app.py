@@ -168,15 +168,14 @@ if cap_file:
     max_width = 600
     scale = max_width / cap_image.width
     display_size = (max_width, int(cap_image.height * scale))
-    cap_resized = cap_image.resize(display_size)
+    cap_resized = cap_image.resize(display_size).convert("RGB")
 
-    cap_resized = cap_resized.convert("RGB")
-    cap_resized_np = np.asarray(cap_resized).astype(np.uint8).copy()
+    # ✅ FIX: directly pass resized PIL image (no NumPy conversion)
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=Image.fromarray(cap_resized_np),
+        background_image=cap_resized,   # ✅ fixed line
         update_streamlit=True,
         height=display_size[1],
         width=display_size[0],
@@ -244,7 +243,3 @@ if st.session_state.results:
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
-
-
-
-
