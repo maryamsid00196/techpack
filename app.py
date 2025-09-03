@@ -1,4 +1,6 @@
 import os
+import time
+
 import pandas as pd
 import streamlit as st
 from PIL import Image
@@ -6,21 +8,24 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.platypus import Table, TableStyle
 from streamlit_drawable_canvas import st_canvas
-import time
+
 from ai_part import ai_generate_description, generate_pdf_report
 from opencv_logic import apply_logo_realistic
+
 
 # --- CACHE LOADED IMAGES ---
 @st.cache_data(show_spinner=False)
 def load_image(path):
     return Image.open(path).convert("RGBA")
 
+
 # --- FETCH EXCEL DATA ---
 def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
     df = pd.read_excel(file_path, header=None)
-    subset = df.iloc[start_row - 1:end_row, [1, 2]].dropna()
+    subset = df.iloc[start_row - 1 : end_row, [1, 2]].dropna()
     subset.columns = [column1, column2]
     return subset.values.tolist()
+
 
 # --- STREAMLIT PAGE CONFIG ---
 st.set_page_config(page_title="Logo Placement Tool", layout="wide")
@@ -48,6 +53,10 @@ if "canvas_objects" not in st.session_state:
 if "placement" not in st.session_state:
     st.session_state.placement = "Front Panel"
 
+
+if "current_cap_filename" not in st.session_state:
+    st.session_state.current_cap_filename = None
+
 # --- STEP 0: UPLOAD EXCEL ---
 st.subheader("Step 0: Upload Excel & Select Data Range")
 excel_file = st.file_uploader("Upload Excel File", type=["xlsx", "xls"], key="excel_upload")
@@ -63,7 +72,7 @@ if excel_file:
     end_row = st.number_input("End Row (1-indexed)", min_value=1, max_value=total_rows, value=total_rows, step=1)
 
     if st.button("📥 Fetch Data from Excel"):
-        subset = df.iloc[start_row - 1:end_row, [1, 2]].dropna()
+        subset = df.iloc[start_row - 1 : end_row, [1, 2]].dropna()
         if key_col_input and value_col_input:
             subset.columns = [key_col_input, value_col_input]
         else:
@@ -101,7 +110,9 @@ if logo_file:
 
 # --- STEP 2: DEFINE LOGO SIZE ---
 st.subheader("Step 2: Define Approximate Logo Size (for PDF Report)")
-st.info("This size is for the text description in the final report. The visual size is determined by the area you draw.")
+st.info(
+    "This size is for the text description in the final report. The visual size is determined by the area you draw."
+)
 col_w, col_h = st.columns(2)
 with col_w:
     st.session_state.w_cm = st.number_input("Width (cm)", min_value=1.0, value=st.session_state.w_cm, step=0.5)
@@ -136,14 +147,19 @@ if cap_file:
             "original_path": cap_path,
             "resized_image": cap_resized,
             "scale": scale,
-            "display_size": display_size
+            "display_size": display_size,
         }
-    else:
-        cached = st.session_state.cap_images[cap_filename]
-        cap_path = cached["original_path"]
-        cap_resized = cached["resized_image"]
-        scale = cached["scale"]
-        display_size = cached["display_size"]
+    st.session_state.current_cap_filename = cap_filename
+
+if st.session_state.current_cap_filename:
+    
+    # Retrieve all needed info from session_state
+    cap_filename = st.session_state.current_cap_filename
+    cached_data = st.session_state.cap_images[cap_filename]
+    cap_path = cached_data["original_path"]
+    cap_resized = cached_data["resized_image"]
+    scale = cached_data["scale"]
+    display_size = cached_data["display_size"]
 
     # --- CANVAS ---
     canvas_result = st_canvas(
@@ -155,36 +171,38 @@ if cap_file:
         width=display_size[0],
         drawing_mode="polygon",
         key="cap_canvas",
-        update_streamlit=False,  # prevents constant rerun
     )
-    time.sleep(1)  
 
+ 
+    if st.button("✅ Process Logo") and st.session_state.logo_path:
+        if canvas_result.json_data and canvas_result.json_data.get("objects"):
+            last_object = canvas_result.json_data["objects"][-1]
+            if last_object["type"] == "path" and len(last_object["path"]) >= 4:
+                points = last_object["path"]
+                # Use the 'scale' variable retrieved from session_state
+                dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
 
-# --- PROCESS AND SAVE LOGO ---
-if st.button("✅ Process Logo") and cap_file and st.session_state.logo_path:
-    if canvas_result.json_data and canvas_result.json_data.get("objects"):
-        last_object = canvas_result.json_data["objects"][-1]
-        if last_object["type"] == "path" and len(last_object["path"]) >= 4:
-            points = last_object["path"]
-            dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
+                os.makedirs("output2", exist_ok=True)
+                out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
 
-            os.makedirs("output2", exist_ok=True)
-            out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
-
-            applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
-            if applied:
-                st.image(applied, caption="Preview", width=400)
+                applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
+                if applied:
+                    st.image(applied, caption="Preview", width=400)
 
                 if st.button("💾 Save Cap"):
-                    ai_desc = ai_generate_description(placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name)
-                    st.session_state.results.append({
-                        "image": cap_path,
-                        "logo": st.session_state.logo_path,
-                        "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
-                        "placement": placement,
-                        "description": ai_desc,
-                        "output": out_path,
-                    })
+                    ai_desc = ai_generate_description(
+                        placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
+                    )
+                    st.session_state.results.append(
+                        {
+                            "image": cap_path,
+                            "logo": st.session_state.logo_path,
+                            "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
+                            "placement": placement,
+                            "description": ai_desc,
+                            "output": out_path,
+                        }
+                    )
                     st.success("Cap saved! Upload another image or generate report below.")
 
 # --- FINAL REPORT ---
@@ -202,6 +220,3 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
-
-
-
