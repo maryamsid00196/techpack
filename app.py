@@ -128,35 +128,34 @@ st.info("**HOW TO USE:** 1. Click 4 corners in clockwise order (Top-Left → Top
 cap_file = st.file_uploader("Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key=f"cap_{len(st.session_state.results)}")
 
 if cap_file:
-    cap_filename = f"cap_{cap_file.name}"
-    cap_path = os.path.join("assets", cap_filename)
-
+    # Save cap only once
+    cap_path = os.path.join("uploads", cap_file.name)
     if not os.path.exists(cap_path):
-        cap_image = Image.open(cap_file).convert("RGBA")
+        os.makedirs("uploads", exist_ok=True)
+        cap = Image.open(cap_file).convert("RGBA")
         if cap_path.lower().endswith((".jpg", ".jpeg")):
-            cap_image = cap_image.convert("RGB")
-        cap_image.save(cap_path)
+            cap.convert("RGB").save(cap_path)
+        else:
+            cap.save(cap_path)
     else:
-        cap_image = load_image(cap_path)
+        cap = load_image(cap_path)
 
-    # ✅ Resize for canvas
-    max_width = 300
-    scale = max_width / cap_image.width
-    display_size = (max_width, int(cap_image.height * scale))
-    cap_resized_for_canvas_pil = cap_image.resize(display_size).convert("RGB")
-    # Ensure background image is PIL.Image
-    background_pil = Image.fromarray(np.array(cap_resized_for_canvas_pil))
+    # Resize for display only
+    max_width = 400
+    scale = max_width / cap.width
+    new_size = (max_width, int(cap.height * scale))
+    cap_resized = cap.resize(new_size)
 
-    # ✅ Show image as background in canvas
     canvas_result = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.3)",
-        stroke_width=2,
+        fill_color="rgba(0, 0, 0, 0)",
+        stroke_width=1,
         stroke_color="red",
-        background_image=background_pil,
+        background_image=cap_resized,
+        background_image=np.array(cap_resized), 
         update_streamlit=True,
-        height=display_size[1],
-        width=display_size[0],
-        drawing_mode="polygon",
+        height=cap_resized.height,
+        width=cap_resized.width,
+        drawing_mode="point",
         key=f"canvas_{len(st.session_state.results)}",
     )
 
@@ -215,5 +214,6 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
