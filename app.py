@@ -152,7 +152,9 @@ if cap_file:
     # Scale factor for mapping canvas → original image
     scale_x = cap.width / w
     scale_y = cap.height / h
-    bg_img = Image.fromarray(np.array(cap_resized))
+    #bg_img = Image.fromarray(np.array(cap_resized))
+    bg_img = np.array(cap_resized)
+    #background_image = bg_img if bg_img.size > 0 else None
     background_image = bg_img if bg_img.size > 0 else None
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
@@ -223,6 +225,7 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
 
