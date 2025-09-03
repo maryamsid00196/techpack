@@ -57,7 +57,7 @@ if excel_file:
     value_col_input = st.text_input("Enter column name for Values (renamed)").strip()
 
     start_row = st.number_input("Start Row (1-indexed)", min_value=1, max_value=total_rows, value=1, step=1)
-    end_row = st.number_input("End Row (1-indexed)", min_value=1, max_value=total_rows, value=total_rows, step=1)
+    end_row = st.number_input("End Row (1-indexed)", min_value=1, value=total_rows, step=1)
 
     if st.button("📥 Fetch Data from Excel"):
         subset = df.iloc[start_row - 1:end_row, [1, 2]].dropna()
@@ -215,3 +215,4 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
