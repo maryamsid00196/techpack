@@ -139,66 +139,58 @@ with col_h:
 
 st.subheader("Step 3: Upload and Place Logo on Cap")
 
-
 st.info(
     "**HOW TO USE:** 1. Click 4 corners in clockwise order (Top-Left → Top-Right → Bottom-Right → Bottom-Left). **2. Double-click the 4th point to finalize the shape.** A preview will then appear."
 )
 
-
 cap_file = st.file_uploader(
-    "Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key=f"cap_{len(st.session_state.results)}"
+    "Upload Cap/Base Image", type=["png", "jpg", "jpeg"], key="cap_upload"
 )
-
 
 if cap_file:
     cap_filename = f"cap_{cap_file.name}"
-
     cap_path = os.path.join("uploads", cap_filename)
+    os.makedirs("uploads", exist_ok=True)
 
+    # Save or load cap image
     if not os.path.exists(cap_path):
-        os.makedirs("uploads", exist_ok=True)
-
         cap_image = Image.open(cap_file).convert("RGBA")
-
         if cap_path.lower().endswith((".jpg", ".jpeg")):
             cap_image = cap_image.convert("RGB")
-
         cap_image.save(cap_path)
-
     else:
         cap_image = load_image(cap_path)
 
+    # Resize for display (avoid too large images for canvas)
     max_width = 600
-
     scale = max_width / cap_image.width
-
     display_size = (max_width, int(cap_image.height * scale))
+    cap_resized = cap_image.resize(display_size).convert("RGBA")
 
-    cap_resized = cap_image.resize(display_size)
-
+    # Display canvas only once per uploaded cap
+    canvas_key = f"canvas_{cap_filename}"
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
         background_image=cap_resized,
-        update_streamlit=True,
         height=display_size[1],
         width=display_size[0],
         drawing_mode="polygon",
-        key=f"canvas_{len(st.session_state.results)}",
+        key=canvas_key,
+        update_streamlit=True,
     )
 
-    if canvas_result.json_data and canvas_result.json_data["objects"]:
+    # Process polygon only if drawn
+    if canvas_result.json_data and "objects" in canvas_result.json_data:
         last_object = canvas_result.json_data["objects"][-1]
+        if last_object["type"] == "path":
+            # Extract points safely
+            points = [p[1:3] for p in last_object["path"] if len(p) >= 3]
+            if len(points) >= 4 and st.session_state.logo_path:
+                dest_points = [(x / scale, y / scale) for x, y in points[:4]]
 
-        if last_object["type"] == "path" and len(last_object["path"]) == 5:
-            points = last_object["path"]
-
-            dest_points = [(p[1] / scale, p[2] / scale) for p in points[:4]]
-
-            if st.session_state.logo_path:
                 os.makedirs("output2", exist_ok=True)
-
                 out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
 
                 applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
@@ -209,10 +201,11 @@ if cap_file:
                     placement = st.text_input(
                         "Placement description (e.g., Front Panel)",
                         "Front Panel",
-                        key=f"placement_{len(st.session_state.results)}",
+                        key=f"placement_{cap_filename}",
                     )
 
-                    if st.button("✅ Save This Cap", key=f"save_{len(st.session_state.results)}"):
+                    save_key = f"save_{cap_filename}"
+                    if st.button("✅ Save This Cap", key=save_key):
                         ai_desc = ai_generate_description(
                             placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
                         )
@@ -229,8 +222,7 @@ if cap_file:
                         )
 
                         st.success("Cap saved! Upload another image or generate the report below.")
-
-                        st.experimental_rerun()
+                        # Avoid rerun to prevent canvas reload loop
 
 if st.session_state.results:
     st.markdown("---")
@@ -250,3 +242,4 @@ if st.session_state.results:
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
