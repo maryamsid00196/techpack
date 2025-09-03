@@ -185,7 +185,7 @@ if cap_file:
         height=display_size[1],
         width=display_size[0],
         drawing_mode="polygon",
-        key=f"canvas_{len(st.session_state.results)}",
+        key=f"cap_canvas_{st.session_state.cap_index}"
     )
 
     if canvas_result.json_data and canvas_result.json_data["objects"]:
@@ -252,3 +252,4 @@ if st.session_state.results:
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
