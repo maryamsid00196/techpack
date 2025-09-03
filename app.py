@@ -150,7 +150,6 @@ if cap_file:
         fill_color="rgba(0, 0, 0, 0)",
         stroke_width=1,
         stroke_color="red",
-        background_image=cap_resized,
         background_image=np.array(cap_resized), 
         update_streamlit=True,
         height=cap_resized.height,
@@ -214,6 +213,7 @@ if st.session_state.results:
         generate_pdf_report(st.session_state.results, "logo_techpack.pdf")
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
 
