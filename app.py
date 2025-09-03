@@ -154,49 +154,51 @@ if cap_file:
         width=display_size[0],
         drawing_mode="polygon",
         key=canvas_key,
-        update_streamlit=False,  # prevent constant refresh
+        update_streamlit=False,  # no auto rerun
     )
 
-    # Store polygon objects to preserve across reruns
-    if canvas_result.json_data and "objects" in canvas_result.json_data:
-        st.session_state.canvas_objects[cap_filename] = canvas_result.json_data["objects"]
+    st.write("🎨 Draw your logo placement polygon. Click 'Process Logo' when done.")
 
-    # Apply logo if polygon exists
-    objects = st.session_state.canvas_objects.get(cap_filename, [])
-    if objects and st.session_state.logo_path:
-        last_object = objects[-1]
-        if last_object["type"] == "path":
-            points = [p[1:3] for p in last_object["path"] if len(p) >= 3]
-            if len(points) >= 4:
-                dest_points = [(x / scale, y / scale) for x, y in points[:4]]
-                os.makedirs("output2", exist_ok=True)
-                out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
+    # --- BUTTON TO PROCESS LOGO ---
+    if st.button("Process Logo"):
+        if canvas_result.json_data and "objects" in canvas_result.json_data:
+            st.session_state.canvas_objects[cap_filename] = canvas_result.json_data["objects"]
 
-                applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
-                if applied:
-                    st.image(applied, caption="Preview", width=400)
+            objects = st.session_state.canvas_objects.get(cap_filename, [])
+            if objects and st.session_state.logo_path:
+                last_object = objects[-1]
+                if last_object["type"] == "path":
+                    points = [p[1:3] for p in last_object["path"] if len(p) >= 3]
+                    if len(points) >= 4:
+                        dest_points = [(x / scale, y / scale) for x, y in points[:4]]
+                        os.makedirs("output2", exist_ok=True)
+                        out_path = os.path.join("output2", os.path.splitext(cap_filename)[0] + "_with_logo.png")
 
-                    placement_key = f"placement_{cap_filename}"
-                    placement = st.text_input(
-                        "Placement description (e.g., Front Panel)",
-                        "Front Panel",
-                        key=placement_key
-                    )
+                        applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
+                        if applied:
+                            st.image(applied, caption="Preview", width=400)
 
-                    save_key = f"save_{cap_filename}"
-                    if st.button("✅ Save This Cap", key=save_key):
-                        ai_desc = ai_generate_description(
-                            placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
-                        )
-                        st.session_state.results.append({
-                            "image": cap_path,
-                            "logo": st.session_state.logo_path,
-                            "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
-                            "placement": placement,
-                            "description": ai_desc,
-                            "output": out_path,
-                        })
-                        st.success("Cap saved! Upload another image or generate the report below.")
+                            placement_key = f"placement_{cap_filename}"
+                            placement = st.text_input(
+                                "Placement description (e.g., Front Panel)",
+                                "Front Panel",
+                                key=placement_key
+                            )
+
+                            save_key = f"save_{cap_filename}"
+                            if st.button("✅ Save This Cap", key=save_key):
+                                ai_desc = ai_generate_description(
+                                    placement, (st.session_state.w_cm, st.session_state.h_cm), cap_file.name
+                                )
+                                st.session_state.results.append({
+                                    "image": cap_path,
+                                    "logo": st.session_state.logo_path,
+                                    "size_cm": (st.session_state.w_cm, st.session_state.h_cm),
+                                    "placement": placement,
+                                    "description": ai_desc,
+                                    "output": out_path,
+                                })
+                                st.success("Cap saved! Upload another image or generate the report below.")
 
 # --- FINAL REPORT ---
 if st.session_state.results:
