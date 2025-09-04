@@ -3,7 +3,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Logo Placement Tool", layout="wide")
 
-# --- INITIALIZE SESSION STATE ---
+# --- INITIALIZE SESSION STATE ONCE ---
 defaults = {
     "results": [],
     "logo_path": None,
@@ -17,8 +17,7 @@ defaults = {
     "preview_image_path": None,
 }
 for key, val in defaults.items():
-    if key not in st.session_state:
-        st.session_state[key] = val
+    st.session_state.setdefault(key, val)
 
 # --- NOW IMPORT HEAVY / EXTERNAL MODULES ---
 import os
@@ -50,37 +49,6 @@ def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
 
 
 st.title("🧢 Tech Pack Logo Placement Tool")
-
-# --- INITIALIZE SESSION STATE ---
-if "results" not in st.session_state:
-    st.session_state.results = []
-
-if "logo_path" not in st.session_state:
-    st.session_state.logo_path = None
-
-if "w_cm" not in st.session_state:
-    st.session_state.w_cm = 5.0
-
-if "h_cm" not in st.session_state:
-    st.session_state.h_cm = 5.0
-
-if "cap_images" not in st.session_state:
-    st.session_state.cap_images = {}
-
-if "canvas_objects" not in st.session_state:
-    st.session_state.canvas_objects = {}
-
-if "placement" not in st.session_state:
-    st.session_state.placement = "Front Panel"
-
-
-if "current_cap_filename" not in st.session_state:
-    st.session_state.current_cap_filename = None
-if "canvas_json" not in st.session_state:
-    st.session_state.canvas_json = None
-
-if "preview_image_path" not in st.session_state:
-    st.session_state.preview_image_path = None
 
 # --- STEP 0: UPLOAD EXCEL ---
 st.subheader("Step 0: Upload Excel & Select Data Range")
@@ -179,8 +147,7 @@ if cap_file:
         }
         st.session_state.current_cap_filename = cap_filename
         st.session_state.canvas_json = None
-        # --- CRITICAL FIX: Reset preview when new image is uploaded ---
-        st.session_state.preview_image_path = None
+        st.session_state.preview_image_path = None  # reset preview
 
 
 if st.session_state.current_cap_filename:
@@ -201,15 +168,13 @@ if st.session_state.current_cap_filename:
         width=display_size[0],
         drawing_mode="polygon",
         initial_drawing=st.session_state.canvas_json,
-        # --- CRITICAL FIX 1: DYNAMIC KEY ---
-        # This forces Streamlit to create a new canvas when the image changes.
-        key=f"canvas_{st.session_state.current_cap_filename}",
+        key=f"canvas_{st.session_state.current_cap_filename}",  # dynamic key
     )
 
     if canvas_result.json_data is not None:
         st.session_state.canvas_json = canvas_result.json_data
 
-    # --- PROCESS LOGO (No nested buttons) ---
+    # --- PROCESS LOGO ---
     if st.button("✅ Process Logo", key="process_logo_btn"):
         if st.session_state.logo_path:
             json_data = st.session_state.canvas_json
@@ -224,8 +189,6 @@ if st.session_state.current_cap_filename:
 
                     applied = apply_logo_realistic(cap_path, st.session_state.logo_path, dest_points, out_path)
                     if applied:
-                        # --- CRITICAL FIX 2: DECOUPLING BUTTONS ---
-                        # Instead of nesting, we save the result to session_state
                         st.session_state.preview_image_path = out_path
                 else:
                     st.warning("Please draw a 4-point polygon on the canvas first.")
@@ -234,12 +197,12 @@ if st.session_state.current_cap_filename:
         else:
             st.error("Please upload a logo in Step 1 first.")
 
-# --- NEW SECTION: Display Preview and Save Button (Decoupled) ---
+# --- DISPLAY PREVIEW & SAVE ---
 if st.session_state.preview_image_path:
     st.image(st.session_state.preview_image_path, caption="Preview", width=400)
 
     if st.button("💾 Save Cap", key="save_cap_btn"):
-        placement = st.session_state.placement  # Make sure placement is in session_state
+        placement = st.session_state.placement
         base_cap_name = st.session_state.current_cap_filename.replace("cap_", "", 1)
         ai_desc = ai_generate_description(placement, (st.session_state.w_cm, st.session_state.h_cm), base_cap_name)
         st.session_state.results.append(
@@ -253,9 +216,8 @@ if st.session_state.preview_image_path:
             }
         )
         st.success("Cap saved! Upload another image or generate report below.")
-        # Clear the preview after saving
         st.session_state.preview_image_path = None
-        st.rerun()  # Use st.rerun for a cleaner UI update after saving
+        st.rerun()
 
 # --- FINAL REPORT ---
 if st.session_state.results:
