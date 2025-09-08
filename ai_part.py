@@ -87,6 +87,25 @@ def ai_generate_description(placement, size_cm, cap_name):
         print(f"⚠️ AI description failed: {e}")
         return f"Logo on {cap_name} at {placement}, size {size_cm[0]}x{size_cm[1]} cm."
 
+def fetch_key_value_table(file_path, start_row=0, end_row=None, columns=None):
+    """
+    Reads Excel file and returns a list of lists suitable for ReportLab Table.
+    
+    columns format: {"indices": [col_idx1, col_idx2], "names": ["Detail", "Value"]}
+    """
+    df = pd.read_excel(file_path, header=None)
+    df = df.iloc[start_row:end_row]
+    
+    if columns is None:
+        cols_to_take = [0, 1]
+        col_names = ["Column 1", "Column 2"]
+    else:
+        cols_to_take = columns.get("indices", [0, 1])
+        col_names = columns.get("names", [f"Column {i+1}" for i in cols_to_take])
+    
+    subset = df.iloc[:, cols_to_take]
+    subset.columns = col_names
+    return subset.values.tolist()
 
 # --- PDF Report ---
 def generate_pdf_report(results, excel_file=None, excel_start_row=0, excel_end_row=None, excel_columns=None, pdf_path="logo_techpack.pdf"):
@@ -256,6 +275,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
