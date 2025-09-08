@@ -261,9 +261,11 @@ if st.session_state.results:
             st.image(result["output"], caption=result["placement"], use_column_width=200)
 
     if st.button("📄 Generate PDF Report"):
-        generate_pdf_report(st.session_state.results, "logo_techpack.pdf",excel_file,col_input,start_row,end_row)
+        excel_columns = {"indices": [1, 2], "names": [key_col_input or "Key", value_col_input or "Value"]}
+        generate_pdf_report(st.session_state.results, "logo_techpack.pdf",excel_file,excel_columns,start_row,end_row)
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
 
