@@ -25,12 +25,25 @@ def load_image(path):
     return Image.open(path).convert("RGBA")
 
 
-def fetch_key_value_table(file_path, start_row, end_row, column1, column2):
+def fetch_key_value_table(file_path, start_row=0, end_row=None, columns=None):
+    """
+    Reads Excel file and returns a list of lists suitable for ReportLab Table.
+    
+    columns format: {"indices": [col_idx1, col_idx2], "names": ["Detail", "Value"]}
+    """
     df = pd.read_excel(file_path, header=None)
-    subset = df.iloc[start_row - 1 : end_row, [1, 2]].dropna()
-    subset.columns = [column1, column2]
+    df = df.iloc[start_row:end_row]
+    
+    if columns is None:
+        cols_to_take = [0, 1]
+        col_names = ["Column 1", "Column 2"]
+    else:
+        cols_to_take = columns.get("indices", [0, 1])
+        col_names = columns.get("names", [f"Column {i+1}" for i in cols_to_take])
+    
+    subset = df.iloc[:, cols_to_take]
+    subset.columns = col_names
     return subset.values.tolist()
-
 
 st.set_page_config(page_title="Logo Placement Tool", layout="wide")
 
@@ -248,8 +261,9 @@ if st.session_state.results:
             st.image(result["output"], caption=result["placement"], use_column_width=200)
 
     if st.button("📄 Generate PDF Report"):
-        generate_pdf_report(st.session_state.results, "logo_techpack.pdf",excel_file,key_col_input,value_col_input,start_row,end_row)
+        generate_pdf_report(st.session_state.results, "logo_techpack.pdf",excel_file,col_input,start_row,end_row)
 
         with open("logo_techpack.pdf", "rb") as f:
             st.download_button("⬇️ Download Techpack PDF", f, file_name="logo_techpack.pdf")
+
 
