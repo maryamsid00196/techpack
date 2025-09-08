@@ -87,25 +87,26 @@ def ai_generate_description(placement, size_cm, cap_name):
         print(f"⚠️ AI description failed: {e}")
         return f"Logo on {cap_name} at {placement}, size {size_cm[0]}x{size_cm[1]} cm."
 
+
 def fetch_key_value_table(file_path, start_row=0, end_row=None, columns=None):
     """
     Reads Excel file and returns a list of lists suitable for ReportLab Table.
-    
     columns format: {"indices": [col_idx1, col_idx2], "names": ["Detail", "Value"]}
     """
     df = pd.read_excel(file_path, header=None)
     df = df.iloc[start_row:end_row]
-    
+
     if columns is None:
         cols_to_take = [0, 1]
         col_names = ["Column 1", "Column 2"]
     else:
         cols_to_take = columns.get("indices", [0, 1])
         col_names = columns.get("names", [f"Column {i+1}" for i in cols_to_take])
-    
+
     subset = df.iloc[:, cols_to_take]
     subset.columns = col_names
     return subset.values.tolist()
+
 
 # --- PDF Report ---
 def generate_pdf_report(results, pdf_path="logo_techpack.pdf", excel_file=None, excel_columns=None, excel_start_row=0, excel_end_row=None):
@@ -197,21 +198,22 @@ def generate_pdf_report(results, pdf_path="logo_techpack.pdf", excel_file=None, 
     print(f"📄 Techpack PDF saved as {pdf_path}")
 
 
-
 # ----------------- MAIN -----------------
 def main():
     results = []
 
     # --- Excel file input ---
-    excel_file = input(ai_ask("📑 Enter path to your Excel file: ")).strip()
-    if not os.path.exists(excel_file):
+    excel_file = input("📑 Enter path to your Excel file: ").strip()
+    excel_file_path = save_uploaded_file(excel_file)
+    if not excel_file_path:
         print("⚠️ Excel file not found.")
         return
+
     try:
-        start_row = int(input(ai_ask("Enter Excel start row (0-based index): ")))
-        end_row = int(input(ai_ask("Enter Excel end row (exclusive): ")))
-        col_indices = input(ai_ask("Enter Excel column indices (comma separated, e.g., 1,2): "))
-        col_names = input(ai_ask("Enter names for these columns (comma separated): "))
+        start_row = int(input("Enter Excel start row (0-based index): "))
+        end_row = int(input("Enter Excel end row (exclusive): "))
+        col_indices = input("Enter Excel column indices (comma separated, e.g., 1,2): ")
+        col_names = input("Enter names for these columns (comma separated): ")
 
         col_indices = [int(x.strip()) for x in col_indices.split(",")]
         col_names = [x.strip() for x in col_names.split(",")]
@@ -267,19 +269,18 @@ def main():
             break
 
     if results:
-        pdf_out = os.path.join(OUTPUT_DIR, "logo_techpack.pdf")
-        generate_pdf_report(results,excel_file=excel_file,excel_start_row=start_row,excel_end_row=end_row,excel_columns=excel_columns,pdf_path=os.path.join(out_dir, "logo_techpack_dynamic.pdf"))
+        pdf_out = os.path.join(OUTPUT_DIR, "logo_techpack_dynamic.pdf")
+        generate_pdf_report(
+            results,
+            pdf_path=pdf_out,
+            excel_file=excel_file_path,
+            excel_start_row=start_row,
+            excel_end_row=end_row,
+            excel_columns=excel_columns
+        )
     else:
         print("⚠️ No logos applied. Nothing to export.")
 
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
