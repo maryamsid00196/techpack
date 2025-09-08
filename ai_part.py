@@ -78,34 +78,95 @@ def ai_generate_description(placement, size_cm, cap_name):
         return f"Logo on {cap_name} at {placement}, size {size_cm[0]}x{size_cm[1]} cm."
 
 
-def generate_pdf_report(results, pdf_path):
-    """Generate a PDF techpack report."""
-    c = canvas.Canvas(pdf_path, pagesize=A4)
-    width, height = A4
+# --- PDF Report ---
+def generate_pdf_report(results, pdf_path="logo_techpack.pdf", excel_file=None):
+    doc = SimpleDocTemplate(pdf_path, pagesize=A4)
+    styles = getSampleStyleSheet()
+    normal = ParagraphStyle("NormalWrap", parent=styles["Normal"], fontSize=10)
+    heading = styles["Heading2"]
 
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(2 * cm, height - 2 * cm, "Logo Techpack Report")
+    story = []
 
-    y = height - 3 * cm
-    for r in results:
-        c.setFont("Helvetica", 12)
-        c.drawString(2 * cm, y, f"Placement: {r['placement']} | Size: {r['size_cm']} cm")
-        y -= 0.5 * cm
-        c.drawString(2 * cm, y, f"Description: {r['description']}")
-        y -= 1.5 * cm
+    # --- Title ---
+    story.append(Paragraph("<b>Trucker Hat Tech Pack</b>", styles["Title"]))
+    story.append(Spacer(1, 20))
+
+    story.append(Paragraph("<b>Hummingbird Sunrise Design</b>", styles["Title"]))
+    story.append(Spacer(1, 12))
+
+    # --- Fabric & Design Details ---
+    if excel_file and os.path.exists(excel_file):
+        story.append(Paragraph("Fabric & Design Details", heading))
+        story.append(Spacer(1, 12))
 
         try:
-            c.drawImage(r["output"], 2 * cm, y - 6 * cm, width=8 * cm, preserveAspectRatio=True)
-            y -= 7 * cm
+            design_data = fetch_key_value_table(excel_file, 21, 50)
+            design_table = Table(design_data, colWidths=[7*cm, 8*cm])
+            design_table.setStyle(TableStyle([
+                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ]))
+            story.append(design_table)
+            story.append(Spacer(1, 20))
         except Exception as e:
-            print(f"⚠️ Could not add image to PDF: {e}")
+            story.append(Paragraph(f"<b>⚠️ Error reading Excel file:</b> {str(e)}", normal))
+            story.append(Spacer(1, 12))
 
-        if y < 5 * cm:
-            c.showPage()
-            y = height - 3 * cm
+    # --- Full Page Cap Images ---
+    for i, item in enumerate(results, 1):
+        pil_img = Image.open(item["output"])
+        w, h = pil_img.size
+        aspect = w / h
+        max_w, max_h = A4[0] - 4*cm, A4[1] - 8*cm  # safer margins
 
-    c.save()
-    print(f"📄 PDF saved: {pdf_path}")
+        if aspect > 1:  # landscape
+            display_w = max_w
+            display_h = max_w / aspect
+        else:           # portrait
+            display_h = max_h
+            display_w = max_h * aspect
+
+        story.append(RLImage(item["output"], width=display_w, height=display_h))
+        story.append(Spacer(1, 6))
+
+    # --- Measurements Diagram (end page) ---
+    story.append(PageBreak())
+    story.append(Paragraph("Design and Label Measurements", heading))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Logo Placement Summary", heading))
+    story.append(Spacer(1, 12))
+
+    table_data = [["Logo", "Size (cm)", "Placement", "AI Description"]]
+    for item in results:
+        size_cm = f"{item['size_cm'][0]:.2f} × {item['size_cm'][1]:.2f} cm"
+        logo_preview = RLImage(item["logo"], width=2*cm, height=2*cm)
+        table_data.append([
+            logo_preview,
+            Paragraph(size_cm, normal),
+            Paragraph(item["placement"], normal),
+            Paragraph(item["description"], normal),
+        ])
+
+    meas_table = Table(table_data, colWidths=[3*cm, 3*cm, 4*cm, 6*cm])
+    meas_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+        ('ALIGN', (1, 1), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+    story.append(meas_table)
+    story.append(Spacer(1, 14))
+
+    # Build PDF
+    doc.build(story)
+    print(f"📄 Techpack PDF saved as {pdf_path}")
+
 
 
 # ----------------- MAIN -----------------
@@ -167,10 +228,11 @@ def main():
 
     if results:
         pdf_out = os.path.join(OUTPUT_DIR, "logo_techpack.pdf")
-        generate_pdf_report(results, pdf_out)
+        generate_pdf_report(results, pdf_out, excel_file=excel_path)
     else:
         print("⚠️ No logos applied. Nothing to export.")
 
 
 if __name__ == "__main__":
     main()
+
