@@ -57,7 +57,6 @@ humanfriendly==10.0
 idna==3.4
 imageio==2.34.1
 importlib-metadata==6.11.0
-insightface==0.7.3
 itsdangerous==2.2.0
 Jinja2==3.1.4
 jiter==0.10.0
@@ -170,6 +169,7 @@ wrapt==1.16.0
 wsproto==1.2.0
 yacs==0.1.8
 zipp==3.23.0
+
 
 
 
