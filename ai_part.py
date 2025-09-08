@@ -1,265 +1,153 @@
 import os
-import sys
-from PIL import Image
-import matplotlib.pyplot as plt
+import shutil
+import cv2
+import openai
+import pandas as pd
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
-from reportlab.platypus import (
-    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
-    Image as RLImage, PageBreak
-)
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from openai import OpenAI
-import pandas as pd
+from reportlab.pdfgen import canvas
 
-# --- OpenAI Setup ---
-def make_openai_client():
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if not api_key:
+# ----------------- CONFIG -----------------
+UPLOAD_DIR = "uploads"
+OUTPUT_DIR = "outputs"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Make sure this is set in your EC2 env
+
+
+# ----------------- HELPERS -----------------
+def save_uploaded_file(file_path):
+    """Copy file into uploads/ folder and return its new path."""
+    if not os.path.exists(file_path):
+        print(f"⚠️ File not found: {file_path}")
         return None
+    dest_path = os.path.join(UPLOAD_DIR, os.path.basename(file_path))
+    shutil.copy(file_path, dest_path)
+    return dest_path
+
+
+def apply_logo(cap_image_path, logo_image_path, width, height, out_path):
+    """Overlay logo onto cap image and save output."""
     try:
-        return OpenAI(api_key=api_key)
-    except Exception:
-        return None
+        cap_img = cv2.imread(cap_image_path)
+        logo_img = cv2.imread(logo_image_path, cv2.IMREAD_UNCHANGED)
 
-client = make_openai_client()
+        if cap_img is None or logo_img is None:
+            print("⚠️ Error: Could not load image(s).")
+            return False
 
-# --- AI helpers ---
-def ai_generate_description(placement: str, size_cm: tuple, image_name: str) -> str:
-    fallback = f"Logo placed on the {placement}, approximately {size_cm[0]:.1f}×{size_cm[1]:.1f} cm."
-    if client is None:
-        return fallback
+        # Resize logo
+        logo_resized = cv2.resize(logo_img, (width, height))
+
+        # Place logo at top-left (can be improved later)
+        x, y = 50, 50
+        y1, y2 = y, y + logo_resized.shape[0]
+        x1, x2 = x, x + logo_resized.shape[1]
+
+        # Handle alpha channel if exists
+        if logo_resized.shape[2] == 4:
+            alpha = logo_resized[:, :, 3] / 255.0
+            for c in range(0, 3):
+                cap_img[y1:y2, x1:x2, c] = (
+                    alpha * logo_resized[:, :, c] + (1 - alpha) * cap_img[y1:y2, x1:x2, c]
+                )
+        else:
+            cap_img[y1:y2, x1:x2] = logo_resized
+
+        cv2.imwrite(out_path, cap_img)
+        print(f"✅ Saved: {out_path}")
+        return True
+    except Exception as e:
+        print(f"❌ Error applying logo: {e}")
+        return False
+
+
+def ai_generate_description(placement, size_cm, cap_name):
+    """Use GPT to generate a short description."""
     try:
-        prompt = (
-            "You are a tech pack maker. Write a precise, professional one-sentence description "
-            f"for this placement.\nPlacement: {placement}\nSize: {size_cm[0]}×{size_cm[1]} cm\nFile: {image_name}"
-        )
-        resp = client.chat.completions.create(
+        prompt = f"Describe a logo placed on a {cap_name} at {placement}, size {size_cm[0]}x{size_cm[1]} cm."
+        response = openai.ChatCompletion.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You write brief production notes for apparel tech packs."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.4,
-            max_tokens=80,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=60,
         )
-        return resp.choices[0].message.content.strip()
-    except Exception:
-        return fallback
-
-def ai_generate_summary(items: list) -> str:
-    if not items:
-        return "No items were processed."
-    fallback = "\n".join(
-        f"- {os.path.basename(i['image'])}: {i['placement']} @ {i['size_cm'][0]}×{i['size_cm'][1]} cm"
-        for i in items
-    )
-    if client is None:
-        return "Report summary:\n" + fallback
-    try:
-        bullet = "\n".join(
-            f"- File: {os.path.basename(i['image'])}, Placement: {i['placement']}, Size: {i['size_cm'][0]}×{i['size_cm'][1]} cm"
-            for i in items
-        )
-        prompt = (
-            "You are a tech pack maker. Write a short professional summary (2–4 sentences) for this report. Which should include what we want to make based on the data and dont include name of the images\n"
-        )
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You write summaries for apparel tech packs."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.4,
-            max_tokens=200,
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception:
-        return fallback
-
-def ai_ask(question: str) -> str:
-    """Ask user a question as if AI is conducting the conversation."""
-    if client:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a tech pack maker. Ask questions to collect logo, cap, size, and placement."},
-                {"role": "user", "content": question},
-            ],
-            temperature=0.5,
-            max_tokens=50,
-        )
-        return resp.choices[0].message.content.strip()
-    else:
-        return question
-
-# --- Image helpers ---
-def resize_logo(logo_path, width_px, height_px):
-    logo_img = Image.open(logo_path).convert("RGBA")
-    return logo_img.resize((width_px, height_px))
-
-def get_click_coordinates(image_path):
-    coords = {}
-    img = Image.open(image_path).convert("RGBA")
-
-    def onclick(event):
-        if event.xdata and event.ydata:
-            coords["center"] = (int(event.xdata), int(event.ydata))
-            print(f"✅ Clicked {coords['center']} on {os.path.basename(image_path)}")
-            plt.close()
-
-    fig, ax = plt.subplots()
-    ax.imshow(img)
-    ax.set_title(f"Click logo placement → {os.path.basename(image_path)}")
-    fig.canvas.mpl_connect("button_press_event", onclick)
-    plt.show()
-    return coords.get("center")
-
-def apply_logo(cap_path, logo_path, width_px, height_px, out_path):
-    logo_resized = resize_logo(logo_path, width_px, height_px)
-    center = get_click_coordinates(cap_path)
-    if not center:
-        print("⚠️ No click registered, skipping.")
-        return None
-    cx, cy = center
-    w, h = logo_resized.size
-    pos = (int(cx - w/2), int(cy - h/2))
-    cap_img = Image.open(cap_path).convert("RGBA")
-    composite = cap_img.copy()
-    composite.paste(logo_resized, pos, logo_resized)
-    composite.save(out_path)
-    print(f"✅ Saved {out_path}")
-    return out_path
-
-def fetch_key_value_table(file_path, start_row, end_row):
-    import pandas as pd
-
-    # Read Excel without treating the first row as header
-    df = pd.read_excel(file_path, header=None)
-
-    # Select columns B and C (index 1 and 2 because Pandas is 0-based)
-    subset = df.iloc[start_row-1:end_row, [1, 2]]
-
-    # Rename them cleanly
-    subset.columns = ["Details: Hat 1", "Value"]
-
-    return subset.values.tolist()
-
-# --- PDF Report ---
-def generate_pdf_report(results, pdf_path="logo_techpack.pdf"):
-    doc = SimpleDocTemplate(pdf_path, pagesize=A4)
-    styles = getSampleStyleSheet()
-    normal = ParagraphStyle("NormalWrap", parent=styles["Normal"], fontSize=10)
-    heading = styles["Heading2"]
-
-    story = []
-
-    # --- Title ---
-    story.append(Paragraph("<b>Trucker Hat Tech Pack</b>", styles["Title"]))
-    story.append(Spacer(1, 20))
-    
-    story.append(Paragraph("<b>Hummingbird Sunrise Design</b>", styles["Title"]))
-    story.append(Spacer(1, 12))
-
-    
-
-    # --- Fabric & Design Details ---
-    story.append(Paragraph("Fabric & Design Details", heading))
-    story.append(Spacer(1, 12))
-
-    design_data = fetch_key_value_table("TECH.xlsx", 21, 50)
-
-    design_table = Table(design_data, colWidths=[7*cm, 8*cm])
-    design_table.setStyle(TableStyle([
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-    ]))
-    story.append(design_table)
-    # --- Full Page Cap Images ---
-    for i, item in enumerate(results, 1):
-        pil_img = Image.open(item["output"])
-        w, h = pil_img.size
-        aspect = w / h
-        max_w, max_h = A4[0] - 4*cm, A4[1] - 8*cm  # safer margins
-
-        if aspect > 1:  # landscape
-            display_w = max_w
-            display_h = max_w / aspect
-        else:           # portrait
-            display_h = max_h
-            display_w = max_h * aspect
-
-        story.append(RLImage(item["output"], width=display_w, height=display_h))
-        story.append(Spacer(1, 6))  # s
-
-    # --- Measurements Diagram (end page) ---
-    story.append(PageBreak())
-    story.append(Paragraph("Design and Label Measurements", heading))
-    story.append(Spacer(1, 12))
-
-    story.append(Paragraph("Logo Placement Summary", heading))
-    story.append(Spacer(1, 12))
-
-    table_data = [["Logo", "Size (cm)", "Placement", "AI Description"]]
-    for item in results:
-        size_cm = f"{item['size_cm'][0]:.2f} × {item['size_cm'][1]:.2f} cm"
-        logo_preview = RLImage(item["logo"], width=2*cm, height=2*cm)
-        table_data.append([
-            logo_preview,
-            Paragraph(size_cm, normal),
-            Paragraph(item["placement"], normal),
-            Paragraph(item["description"], normal),
-        ])
-
-    meas_table = Table(table_data, colWidths=[3*cm, 3*cm, 4*cm, 6*cm])
-    meas_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 1), (0, -1), 'CENTER'),   # Center only logo column
-        ('ALIGN', (1, 1), (-1, -1), 'LEFT'),    # Left align others
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-    ]))
-    story.append(meas_table)
-    story.append(Spacer(1, 14))
-
-    # Build PDF
-    doc.build(story)
-    print(f"📄 Techpack PDF saved as {pdf_path}")
+        return response.choices[0].message["content"].strip()
+    except Exception as e:
+        print(f"⚠️ AI description failed: {e}")
+        return f"Logo on {cap_name} at {placement}, size {size_cm[0]}x{size_cm[1]} cm."
 
 
-# --- Main flow ---
-def main():
-    results = []
-    while True:
-        logo_path = input(ai_ask("🖼️ Please enter the path to your logo image: ")).strip()
-        if not os.path.exists(logo_path):
-            print("⚠️ Logo not found.")
-            continue
+def generate_pdf_report(results, pdf_path):
+    """Generate a PDF techpack report."""
+    c = canvas.Canvas(pdf_path, pagesize=A4)
+    width, height = A4
 
-        cap_path = input(ai_ask("🧢 Enter path to the cap/base image: ")).strip()
-        if not os.path.exists(cap_path):
-            print("⚠️ Cap not found.")
-            continue
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(2 * cm, height - 2 * cm, "Logo Techpack Report")
+
+    y = height - 3 * cm
+    for r in results:
+        c.setFont("Helvetica", 12)
+        c.drawString(2 * cm, y, f"Placement: {r['placement']} | Size: {r['size_cm']} cm")
+        y -= 0.5 * cm
+        c.drawString(2 * cm, y, f"Description: {r['description']}")
+        y -= 1.5 * cm
 
         try:
-            size_in = input(ai_ask("👉 Enter logo width and height (cm, separated by space): "))
+            c.drawImage(r["output"], 2 * cm, y - 6 * cm, width=8 * cm, preserveAspectRatio=True)
+            y -= 7 * cm
+        except Exception as e:
+            print(f"⚠️ Could not add image to PDF: {e}")
+
+        if y < 5 * cm:
+            c.showPage()
+            y = height - 3 * cm
+
+    c.save()
+    print(f"📄 PDF saved: {pdf_path}")
+
+
+# ----------------- MAIN -----------------
+def main():
+    results = []
+
+    # --- Excel file input ---
+    excel_path = input("📑 Enter path to your Excel (e.g., TECH.xlsx): ").strip()
+    excel_path = save_uploaded_file(excel_path)
+    if not excel_path:
+        print("❌ Excel file is required to generate PDF.")
+        return
+
+    while True:
+        # --- Logo input ---
+        logo_path = input("🖼️ Enter path to your logo image: ").strip()
+        logo_path = save_uploaded_file(logo_path)
+        if not logo_path:
+            continue
+
+        # --- Cap/base image input ---
+        cap_path = input("🧢 Enter path to the cap/base image: ").strip()
+        cap_path = save_uploaded_file(cap_path)
+        if not cap_path:
+            continue
+
+        # --- Logo size input ---
+        try:
+            size_in = input("👉 Enter logo width and height (cm, separated by space): ")
             w_cm, h_cm = map(float, size_in.split())
-            w, h = int(w_cm * 37.8), int(h_cm * 37.8)
+            w, h = int(w_cm * 37.8), int(h_cm * 37.8)  # 37.8 px/cm approx
         except Exception:
             print("⚠️ Invalid size. Using 3×3 cm.")
             w_cm, h_cm = 3, 3
-            w, h = int(3*37.8), int(3*37.8)
+            w, h = int(3 * 37.8), int(3 * 37.8)
 
-        placement = input(ai_ask("📍 Where should I place the logo? (front, side, back, etc.): ")).strip()
+        placement = input("📍 Where should I place the logo? (front, side, back, etc.): ").strip()
 
-        out_dir = "output1"
-        os.makedirs(out_dir, exist_ok=True)
-        out_path = os.path.join(out_dir, os.path.splitext(os.path.basename(cap_path))[0] + "_with_logo.png")
+        out_path = os.path.join(
+            OUTPUT_DIR,
+            os.path.splitext(os.path.basename(cap_path))[0] + "_with_logo.png"
+        )
 
         applied = apply_logo(cap_path, logo_path, w, h, out_path)
         if applied:
@@ -273,14 +161,16 @@ def main():
                 "output": out_path,
             })
 
-        cont = input(ai_ask("➕ Do you want to add another logo? (yes/no): ")).strip().lower()
+        cont = input("➕ Do you want to add another logo? (yes/no): ").strip().lower()
         if cont != "yes":
             break
 
     if results:
-        generate_pdf_report(results)
+        pdf_out = os.path.join(OUTPUT_DIR, "logo_techpack.pdf")
+        generate_pdf_report(results, pdf_out)
     else:
-        print("⚠️ No logos applied.")
+        print("⚠️ No logos applied. Nothing to export.")
+
 
 if __name__ == "__main__":
     main()
