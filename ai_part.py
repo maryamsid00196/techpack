@@ -6,6 +6,10 @@ import pandas as pd
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import cm
 
 # ----------------- CONFIG -----------------
 UPLOAD_DIR = "uploads"
@@ -235,4 +239,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
