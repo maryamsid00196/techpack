@@ -3,13 +3,17 @@ import shutil
 import cv2
 import openai
 import pandas as pd
+
+# Pillow for image handling
+from PIL import Image as PILImage
+
+# ReportLab for PDF generation
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
-from reportlab.pdfgen import canvas
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle, PageBreak
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Image as RLImage,
+    Table, TableStyle, PageBreak
+)
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
@@ -121,7 +125,7 @@ def generate_pdf_report(results, pdf_path="logo_techpack.pdf", excel_file=None):
 
     # --- Full Page Cap Images ---
     for i, item in enumerate(results, 1):
-        pil_img = Image.open(item["output"])
+        pil_img = PILImage.open(item["output"]) 
         w, h = pil_img.size
         aspect = w / h
         max_w, max_h = A4[0] - 4*cm, A4[1] - 8*cm  # safer margins
@@ -241,6 +245,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
