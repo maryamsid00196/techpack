@@ -126,7 +126,7 @@ def generate_pdf_report(results, excel_file=None, excel_start_row=0, excel_end_r
 
     # Cap images
     for item in results:
-        pil_img = Image.open(item["output"])
+        pil_img = PILImage.open(item["output"])
         w, h = pil_img.size
         aspect = w / h
         max_w, max_h = A4[0] - 4*cm, A4[1] - 8*cm
@@ -256,6 +256,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
