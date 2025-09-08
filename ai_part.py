@@ -89,7 +89,7 @@ def ai_generate_description(placement, size_cm, cap_name):
 
 
 # --- PDF Report ---
-def generate_pdf_report(results, pdf_path="logo_techpack.pdf", excel_file=None):
+def generate_pdf_report(results, excel_file=None, excel_start_row=0, excel_end_row=None, excel_columns=None, pdf_path="logo_techpack.pdf"):
     doc = SimpleDocTemplate(pdf_path, pagesize=A4)
     styles = getSampleStyleSheet()
     normal = ParagraphStyle("NormalWrap", parent=styles["Normal"], fontSize=10)
@@ -97,20 +97,21 @@ def generate_pdf_report(results, pdf_path="logo_techpack.pdf", excel_file=None):
 
     story = []
 
-    # --- Title ---
+    # Title
     story.append(Paragraph("<b>Trucker Hat Tech Pack</b>", styles["Title"]))
     story.append(Spacer(1, 20))
 
-    story.append(Paragraph("<b>Hummingbird Sunrise Design</b>", styles["Title"]))
+    story.append(Paragraph("<b>Design Summary</b>", styles["Title"]))
     story.append(Spacer(1, 12))
 
-    # --- Fabric & Design Details ---
+    # Fabric & Design Details (dynamic Excel)
     if excel_file and os.path.exists(excel_file):
         story.append(Paragraph("Fabric & Design Details", heading))
         story.append(Spacer(1, 12))
-
         try:
-            design_data = fetch_key_value_table(excel_file, 21, 50)
+            design_data = fetch_key_value_table(
+                excel_file, start_row=excel_start_row, end_row=excel_end_row, columns=excel_columns
+            )
             design_table = Table(design_data, colWidths=[7*cm, 8*cm])
             design_table.setStyle(TableStyle([
                 ('GRID', (0,0), (-1,-1), 0.5, colors.black),
@@ -123,28 +124,27 @@ def generate_pdf_report(results, pdf_path="logo_techpack.pdf", excel_file=None):
             story.append(Paragraph(f"<b>⚠️ Error reading Excel file:</b> {str(e)}", normal))
             story.append(Spacer(1, 12))
 
-    # --- Full Page Cap Images ---
-    for i, item in enumerate(results, 1):
-        pil_img = PILImage.open(item["output"]) 
+    # Cap images
+    for item in results:
+        pil_img = Image.open(item["output"])
         w, h = pil_img.size
         aspect = w / h
-        max_w, max_h = A4[0] - 4*cm, A4[1] - 8*cm  # safer margins
+        max_w, max_h = A4[0] - 4*cm, A4[1] - 8*cm
 
-        if aspect > 1:  # landscape
+        if aspect > 1:
             display_w = max_w
             display_h = max_w / aspect
-        else:           # portrait
+        else:
             display_h = max_h
             display_w = max_h * aspect
 
         story.append(RLImage(item["output"], width=display_w, height=display_h))
         story.append(Spacer(1, 6))
 
-    # --- Measurements Diagram (end page) ---
+    # Measurements
     story.append(PageBreak())
     story.append(Paragraph("Design and Label Measurements", heading))
     story.append(Spacer(1, 12))
-
     story.append(Paragraph("Logo Placement Summary", heading))
     story.append(Spacer(1, 12))
 
@@ -184,11 +184,22 @@ def main():
     results = []
 
     # --- Excel file input ---
-    excel_path = input("📑 Enter path to your Excel (e.g., TECH.xlsx): ").strip()
-    excel_path = save_uploaded_file(excel_path)
-    if not excel_path:
-        print("❌ Excel file is required to generate PDF.")
+    excel_file = input(ai_ask("📑 Enter path to your Excel file: ")).strip()
+    if not os.path.exists(excel_file):
+        print("⚠️ Excel file not found.")
         return
+    try:
+        start_row = int(input(ai_ask("Enter Excel start row (0-based index): ")))
+        end_row = int(input(ai_ask("Enter Excel end row (exclusive): ")))
+        col_indices = input(ai_ask("Enter Excel column indices (comma separated, e.g., 1,2): "))
+        col_names = input(ai_ask("Enter names for these columns (comma separated): "))
+
+        col_indices = [int(x.strip()) for x in col_indices.split(",")]
+        col_names = [x.strip() for x in col_names.split(",")]
+        excel_columns = {"indices": col_indices, "names": col_names}
+    except Exception:
+        print("⚠️ Invalid Excel input. Using defaults.")
+        start_row, end_row, excel_columns = 0, None, None
 
     while True:
         # --- Logo input ---
@@ -238,13 +249,14 @@ def main():
 
     if results:
         pdf_out = os.path.join(OUTPUT_DIR, "logo_techpack.pdf")
-        generate_pdf_report(results, pdf_out, excel_file=excel_path)
+        generate_pdf_report(results,excel_file=excel_file,excel_start_row=start_row,excel_end_row=end_row,excel_columns=excel_columns,pdf_path=os.path.join(out_dir, "logo_techpack_dynamic.pdf"))
     else:
         print("⚠️ No logos applied. Nothing to export.")
 
 
 if __name__ == "__main__":
     main()
+
 
 
 
