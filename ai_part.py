@@ -108,7 +108,7 @@ def fetch_key_value_table(file_path, start_row=0, end_row=None, columns=None):
     return subset.values.tolist()
 
 # --- PDF Report ---
-def generate_pdf_report(results, excel_file=None, excel_start_row=0, excel_end_row=None, excel_columns=None, pdf_path="logo_techpack.pdf"):
+def generate_pdf_report(results, pdf_path="logo_techpack.pdf", excel_file=None, excel_columns=None, excel_start_row=0, excel_end_row=None):
     doc = SimpleDocTemplate(pdf_path, pagesize=A4)
     styles = getSampleStyleSheet()
     normal = ParagraphStyle("NormalWrap", parent=styles["Normal"], fontSize=10)
@@ -275,6 +275,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
